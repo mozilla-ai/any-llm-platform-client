@@ -14,7 +14,7 @@ Example:
     python decrypt_provider_key.py 155c8a03-6906-4390-884c-785a2de8560d openai
 
 The script expects ANY_API_KEY in the format:
-    ANY.v2.<kid>.<fingerprint>-<base64_32byte_private_key>
+    ANY.v1.<kid>.<fingerprint>-<base64_32byte_private_key>
 """
 
 import sys
@@ -39,17 +39,17 @@ API_BASE_URL = "http://localhost:8000/api/v1"
 def parse_any_api_key(any_api_key: str) -> tuple:
     """Parse ANY_API_KEY format and extract components.
 
-    Format: ANY.v2.<kid>.<fingerprint>-<base64_32byte_private_key>
+    Format: ANY.v1.<kid>.<fingerprint>-<base64_32byte_private_key>
 
     Returns:
         tuple: (kid, fingerprint, base64_private_key)
     """
     import re
 
-    match = re.match(r'^ANY\.v2\.([^.]+)\.([^-]+)-(.+)$', any_api_key)
+    match = re.match(r'^ANY\.v1\.([^.]+)\.([^-]+)-(.+)$', any_api_key)
 
     if not match:
-        raise ValueError("Invalid ANY_API_KEY format. Expected: ANY.v2.<kid>.<fingerprint>-<base64_key>")
+        raise ValueError("Invalid ANY_API_KEY format. Expected: ANY.v1.<kid>.<fingerprint>-<base64_key>")
 
     kid, fingerprint, base64_private_key = match.groups()
     return kid, fingerprint, base64_private_key
@@ -171,7 +171,7 @@ def get_any_api_key() -> str:
     print("\n🔑 ANY_API_KEY Required")
     print("=" * 60)
     print("Please paste your ANY_API_KEY (generated from the web UI)")
-    print("Format: ANY.v2.<kid>.<fingerprint>-<base64_key>")
+    print("Format: ANY.v1.<kid>.<fingerprint>-<base64_key>")
     print()
     print("💡 TIP: Set as environment variable:")
     print("   export ANY_API_KEY='your-key-here'")
