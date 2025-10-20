@@ -25,6 +25,8 @@ import os
 
 try:
     import nacl.public
+    import nacl.bindings
+    import hashlib
 except ImportError:
     print("❌ Error: Missing required Python packages")
     print("\nPlease install dependencies:")
@@ -70,17 +72,40 @@ def extract_public_key(private_key) -> str:
 
 
 def decrypt_data(encrypted_data_base64: str, private_key) -> str:
-    """Decrypt data using X25519 sealed box.
+    """Decrypt data using X25519 sealed box with XChaCha20-Poly1305.
 
-    Format: ephemeral_public_key (32 bytes) + ciphertext (nonce derived internally)
+    Format: ephemeral_public_key (32 bytes) + ciphertext
+
+    This implements the same sealed box construction as the backend and frontend,
+    using XChaCha20-Poly1305 instead of the legacy XSalsa20-Poly1305.
     """
     encrypted_data = base64.b64decode(encrypted_data_base64)
 
-    # Create sealed box with private key
-    sealed_box = nacl.public.SealedBox(private_key)
+    # Extract ephemeral public key (first 32 bytes) and ciphertext
+    if len(encrypted_data) < 32:
+        raise ValueError("Invalid sealed box format: too short")
 
-    # Decrypt using sealed box
-    decrypted_data = sealed_box.decrypt(encrypted_data)
+    ephemeral_public_key = encrypted_data[:32]
+    ciphertext = encrypted_data[32:]
+
+    # Get recipient's public key from private key
+    recipient_public_key = bytes(private_key.public_key)
+
+    # Compute shared secret using X25519 ECDH
+    shared_secret = nacl.bindings.crypto_scalarmult(
+        bytes(private_key), ephemeral_public_key
+    )
+
+    # Derive nonce from hash(ephemeral_pubkey || recipient_pubkey)
+    # This matches the sealed box construction in the frontend/backend
+    combined = ephemeral_public_key + recipient_public_key
+    nonce_hash = hashlib.sha512(combined).digest()[:24]  # Take first 24 bytes of SHA-512
+
+    # Decrypt with XChaCha20-Poly1305 AEAD
+    decrypted_data = nacl.bindings.crypto_aead_xchacha20poly1305_ietf_decrypt(
+        ciphertext, None, nonce_hash, shared_secret
+    )
+
     return decrypted_data.decode('utf-8')
 
 
