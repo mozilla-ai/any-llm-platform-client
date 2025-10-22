@@ -155,13 +155,10 @@ def fetch_provider_key(
     """Step 3: Fetch the provider key using the solved challenge."""
     print(f"🔑 Fetching provider key for {provider}...")
 
-    # Base64-encode the key for HTTP header
-    encryption_key_base64 = base64.b64encode(public_key.encode()).decode()
-
     response = requests.get(
         f"{API_BASE_URL}/provider-keys/{project_id}/{provider}",
         headers={
-            "encryption-key": encryption_key_base64,
+            "encryption-key": public_key,
             "X-Solved-Challenge": str(solved_challenge)
         }
     )
