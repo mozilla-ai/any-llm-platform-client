@@ -55,9 +55,11 @@ def post_usage_event(
         "provider_key_id": provider_key_id,
         "provider": provider,
         "model": model,
-        "event_metadata": event_metadata,
-        "input_tokens": input_tokens,
-        "output_tokens": output_tokens,
+        "data": {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "metadata": event_metadata
+        },
         "id": event_id
     }
     
