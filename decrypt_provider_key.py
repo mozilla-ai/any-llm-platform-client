@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
-Script to decrypt provider keys using the ANY_API_KEY format.
+Script to decrypt provider keys using the ANY_LLM_KEY format.
 
 Installation:
     pip install -r requirements-decrypt.txt
 
 Usage:
-    python decrypt_provider_key.py                    # Interactive mode (recommended)
-    python decrypt_provider_key.py <project_id> <provider>  # Direct mode
+    python decrypt_provider_key.py                # Interactive mode (recommended)
+    python decrypt_provider_key.py <provider>     # Direct mode
 
 Example:
-    python decrypt_provider_key.py                    # Will prompt for ANY_API_KEY
-    python decrypt_provider_key.py 155c8a03-6906-4390-884c-785a2de8560d openai
+    python decrypt_provider_key.py                # Will prompt for ANY_LLM_KEY
+    python decrypt_provider_key.py openai
 
-The script expects ANY_API_KEY in the format:
+The script expects ANY_LLM_KEY in the format:
     ANY.v1.<kid>.<fingerprint>-<base64_32byte_private_key>
 """
 
@@ -38,8 +38,8 @@ except ImportError:
 API_BASE_URL = "http://localhost:8000/api/v1"
 
 
-def parse_any_api_key(any_api_key: str) -> tuple:
-    """Parse ANY_API_KEY format and extract components.
+def parse_any_llm_key(any_llm_key: str) -> tuple:
+    """Parse ANY_LLM_KEY format and extract components.
 
     Format: ANY.v1.<kid>.<fingerprint>-<base64_32byte_private_key>
 
@@ -48,10 +48,10 @@ def parse_any_api_key(any_api_key: str) -> tuple:
     """
     import re
 
-    match = re.match(r'^ANY\.v1\.([^.]+)\.([^-]+)-(.+)$', any_api_key)
+    match = re.match(r'^ANY\.v1\.([^.]+)\.([^-]+)-(.+)$', any_llm_key)
 
     if not match:
-        raise ValueError("Invalid ANY_API_KEY format. Expected: ANY.v1.<kid>.<fingerprint>-<base64_key>")
+        raise ValueError("Invalid ANY_LLM_KEY format. Expected: ANY.v1.<kid>.<fingerprint>-<base64_key>")
 
     kid, fingerprint, base64_private_key = match.groups()
     return kid, fingerprint, base64_private_key
@@ -116,8 +116,7 @@ def create_challenge(public_key: str) -> dict:
     response = requests.post(
         f"{API_BASE_URL}/auth/",
         json={
-            "encryption_key": public_key,
-            "key_type": "RSA"  # Backend auto-detects X25519, this is just for tracking
+            "encryption_key": public_key
         }
     )
 
@@ -125,9 +124,9 @@ def create_challenge(public_key: str) -> dict:
         print(f"❌ Error creating challenge: {response.status_code}")
         print(response.json())
 
-        if "No user found" in str(response.json()):
-            print("\n⚠️  The public key from your ANY_API_KEY doesn't match any user.")
-            print("Solution: Go to Settings → ANY_API_KEY tab and generate a new key.")
+        if "No project found" in str(response.json()):
+            print("\n⚠️  The public key from your ANY_LLM_KEY doesn't match any project.")
+            print("Solution: Go to your project page and generate a new API key.")
         sys.exit(1)
 
     data = response.json()
@@ -147,7 +146,6 @@ def solve_challenge(encrypted_challenge: str, private_key) -> uuid.UUID:
 
 
 def fetch_provider_key(
-    project_id: str,
     provider: str,
     public_key: str,
     solved_challenge: uuid.UUID
@@ -156,7 +154,7 @@ def fetch_provider_key(
     print(f"🔑 Fetching provider key for {provider}...")
 
     response = requests.get(
-        f"{API_BASE_URL}/provider-keys/{project_id}/{provider}",
+        f"{API_BASE_URL}/provider-keys/{provider}",
         headers={
             "encryption-key": public_key,
             "X-Solved-Challenge": str(solved_challenge)
@@ -182,59 +180,48 @@ def decrypt_provider_key_value(encrypted_key: str, private_key) -> str:
     return decrypted_key
 
 
-def get_any_api_key() -> str:
-    """Get ANY_API_KEY from environment variable or prompt user."""
-    any_api_key = os.getenv('ANY_API_KEY')
+def get_any_llm_key() -> str:
+    """Get ANY_LLM_KEY from environment variable or prompt user."""
+    any_llm_key = os.getenv('ANY_LLM_KEY')
 
-    if any_api_key:
-        print("✅ Using ANY_API_KEY from environment variable")
-        return any_api_key
+    if any_llm_key:
+        print("✅ Using ANY_LLM_KEY from environment variable")
+        return any_llm_key
 
-    print("\n🔑 ANY_API_KEY Required")
+    print("\n🔑 ANY_LLM_KEY Required")
     print("=" * 60)
-    print("Please paste your ANY_API_KEY (generated from the web UI)")
+    print("Please paste your ANY_LLM_KEY (generated from the project page)")
     print("Format: ANY.v1.<kid>.<fingerprint>-<base64_key>")
     print()
     print("💡 TIP: Set as environment variable:")
-    print("   export ANY_API_KEY='your-key-here'")
+    print("   export ANY_LLM_KEY='your-key-here'")
     print()
 
     try:
-        any_api_key = input("Paste key and press Enter: ").strip()
-        if not any_api_key:
-            print("❌ ANY_API_KEY is required")
+        any_llm_key = input("Paste key and press Enter: ").strip()
+        if not any_llm_key:
+            print("❌ ANY_LLM_KEY is required")
             sys.exit(1)
-        return any_api_key
+        return any_llm_key
     except KeyboardInterrupt:
         print("\n👋 Goodbye!")
         sys.exit(0)
 
 
 def interactive_mode():
-    """Interactive mode - asks for project ID and provider."""
+    """Interactive mode - asks for provider only."""
     print("\n🔐 Interactive Mode")
     print("=" * 60)
-    print("💡 Find project IDs and providers in the web UI")
+    print("💡 Find provider names in the web UI")
     print()
 
     try:
-        project_id = input("Enter Project ID (UUID): ").strip()
-        if not project_id:
-            print("❌ Project ID is required")
-            sys.exit(1)
-
-        try:
-            uuid.UUID(project_id)
-        except ValueError:
-            print("❌ Invalid UUID format")
-            sys.exit(1)
-
         provider = input("Enter Provider name (e.g., openai, anthropic): ").strip()
         if not provider:
             print("❌ Provider name is required")
             sys.exit(1)
 
-        return project_id, provider
+        return provider
 
     except KeyboardInterrupt:
         print("\n👋 Goodbye!")
@@ -243,20 +230,18 @@ def interactive_mode():
 
 def main():
     # Parse command line arguments
-    if len(sys.argv) == 3:
-        project_id = sys.argv[1]
-        provider = sys.argv[2]
+    if len(sys.argv) == 2:
+        provider = sys.argv[1]
         interactive = False
     elif len(sys.argv) == 1:
-        project_id = None
         provider = None
         interactive = True
     else:
         print("Usage:")
-        print("  python decrypt_provider_key.py                    # Interactive mode")
-        print("  python decrypt_provider_key.py <project_id> <provider>  # Direct mode")
+        print("  python decrypt_provider_key.py             # Interactive mode")
+        print("  python decrypt_provider_key.py <provider>  # Direct mode")
         print("\nExample:")
-        print("  python decrypt_provider_key.py 123e4567-e89b-12d3-a456-426614174000 openai")
+        print("  python decrypt_provider_key.py openai")
         sys.exit(1)
 
     print("=" * 60)
@@ -264,20 +249,19 @@ def main():
     print("=" * 60)
 
     if not interactive:
-        print(f"Project ID: {project_id}")
         print(f"Provider: {provider}")
 
     print("=" * 60)
     print()
 
     try:
-        # Get ANY_API_KEY
-        any_api_key = get_any_api_key()
+        # Get ANY_LLM_KEY
+        any_llm_key = get_any_llm_key()
         print()
 
-        # Parse ANY_API_KEY
-        print("🔍 Parsing ANY_API_KEY...")
-        kid, fingerprint, private_key_base64 = parse_any_api_key(any_api_key)
+        # Parse ANY_LLM_KEY
+        print("🔍 Parsing ANY_LLM_KEY...")
+        kid, fingerprint, private_key_base64 = parse_any_llm_key(any_llm_key)
         print(f"✅ Key ID: {kid}")
         print(f"✅ Fingerprint: {fingerprint}")
         print()
@@ -294,9 +278,9 @@ def main():
         print("✅ Public key extracted")
         print()
 
-        # Get project and provider if interactive mode
+        # Get provider if interactive mode
         if interactive:
-            project_id, provider = interactive_mode()
+            provider = interactive_mode()
             print()
 
         # Step 1: Create challenge
@@ -312,7 +296,6 @@ def main():
 
         # Step 3: Fetch provider key (encrypted)
         provider_key_data = fetch_provider_key(
-            project_id,
             provider,
             public_key,
             solved_challenge
