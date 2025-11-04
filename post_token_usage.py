@@ -20,13 +20,13 @@ import requests
 
 # Import functions from the reference script
 from decrypt_provider_key import (
-    parse_any_api_key,
+    parse_any_llm_key,
     load_private_key,
     extract_public_key,
     create_challenge,
     solve_challenge,
     fetch_provider_key,
-    get_any_api_key,
+    get_any_llm_key,
     interactive_mode,
     API_BASE_URL
 )
@@ -113,12 +113,12 @@ def main():
 
     try:
         # Get ANY_API_KEY
-        any_api_key = get_any_api_key()
+        any_api_key = get_any_llm_key()
         print()
 
         # Parse ANY_API_KEY
         print("🔍 Parsing ANY_API_KEY...")
-        kid, fingerprint, private_key_base64 = parse_any_api_key(any_api_key)
+        kid, fingerprint, private_key_base64 = parse_any_llm_key(any_api_key)
         print(f"✅ Key ID: {kid}")
         print(f"✅ Fingerprint: {fingerprint}")
         print()
@@ -137,7 +137,7 @@ def main():
 
         # Get project and provider if interactive mode
         if interactive:
-            project_id, provider = interactive_mode()
+            provider = interactive_mode()
             print()
 
         # Step 1: Create challenge to GET provider key details (ID, name)
@@ -153,7 +153,6 @@ def main():
 
         # Step 3: Fetch provider key to get ID and provider
         provider_key_data = fetch_provider_key(
-            project_id,
             provider,
             public_key,
             solved_challenge
