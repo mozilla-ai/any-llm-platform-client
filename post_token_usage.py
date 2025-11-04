@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Script to post token usage events.
+"""Script to post token usage events.
 
 Usage:
     python post_token_usage.py                    # Interactive mode (recommended)
@@ -16,19 +15,20 @@ The script expects ANY_API_KEY in the format:
 
 import sys
 import uuid
+
 import requests
 
 # Import functions from the reference script
 from decrypt_provider_key import (
-    parse_any_llm_key,
-    load_private_key,
-    extract_public_key,
+    API_BASE_URL,
     create_challenge,
-    solve_challenge,
+    extract_public_key,
     fetch_provider_key,
     get_any_llm_key,
     interactive_mode,
-    API_BASE_URL
+    load_private_key,
+    parse_any_llm_key,
+    solve_challenge,
 )
 
 
@@ -40,49 +40,51 @@ def post_usage_event(
     model: str = "gpt-4.1",
     input_tokens: int = 100,
     output_tokens: int = 1000,
-    event_metadata: dict = None
-) -> dict:
+    event_metadata: dict = None,
+) -> None:
     """Post a usage event to the API."""
     print(f"📊 Posting usage event for {provider}...")
-    
+
     if event_metadata is None:
         event_metadata = {"foo": "bar"}
-    
+
     # Generate a random UUID for the event
     event_id = str(uuid.uuid4())
-    
+
     payload = {
         "provider_key_id": provider_key_id,
         "provider": provider,
         "model": model,
-        "data": {
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
-            "metadata": event_metadata
-        },
-        "id": event_id
+        "data": {"input_tokens": input_tokens, "output_tokens": output_tokens, "metadata": event_metadata},
+        "id": event_id,
     }
-    
+
     print(f"📦 Payload: {payload}")
-    
+
     response = requests.post(
         f"{API_BASE_URL}/usage-events/",
         json=payload,
-        headers={
-            "encryption-key": public_key,
-            "X-Solved-Challenge": str(solved_challenge)
-        }
+        headers={"encryption-key": public_key, "X-Solved-Challenge": str(solved_challenge)},
     )
-    
+
     if response.status_code != 204:
         print(f"❌ Error posting usage event: {response.status_code}")
         print(response.json())
         sys.exit(1)
-    
-    print(f"✅ Usage event posted successfully!")
+
+    print("✅ Usage event posted successfully!")
 
 
-def main():
+def main() -> None:
+    """Main entry point for posting token usage events to the API.
+
+    Supports both interactive and direct modes:
+    - Interactive: Prompts for provider name
+    - Direct: Accepts project_id and provider as command-line arguments
+
+    The script authenticates using challenge-response, fetches provider key details,
+    then posts a usage event with token counts and metadata.
+    """
     # Parse command line arguments
     if len(sys.argv) == 3:
         project_id = sys.argv[1]
@@ -145,24 +147,17 @@ def main():
         print()
 
         # Step 2: Solve challenge
-        solved_challenge = solve_challenge(
-            challenge_data['encrypted_challenge'],
-            private_key
-        )
+        solved_challenge = solve_challenge(challenge_data["encrypted_challenge"], private_key)
         print()
 
         # Step 3: Fetch provider key to get ID and provider
-        provider_key_data = fetch_provider_key(
-            provider,
-            public_key,
-            solved_challenge
-        )
+        provider_key_data = fetch_provider_key(provider, public_key, solved_challenge)
         print()
 
         # Extract provider key ID
-        provider_key_id = provider_key_data.get('id')
-        provider_name = provider_key_data.get('provider')
-        
+        provider_key_id = provider_key_data.get("id")
+        provider_name = provider_key_data.get("provider")
+
         print(f"📋 Provider Key ID: {provider_key_id}")
         print(f"📋 Provider: {provider_name}")
         print()
@@ -172,10 +167,7 @@ def main():
         print()
 
         # Step 5: Solve second challenge
-        solved_challenge = solve_challenge(
-            challenge_data['encrypted_challenge'],
-            private_key
-        )
+        solved_challenge = solve_challenge(challenge_data["encrypted_challenge"], private_key)
         print()
 
         # Step 6: POST usage event
@@ -187,7 +179,7 @@ def main():
             model="gpt-4.1",
             input_tokens=100,
             output_tokens=1000,
-            event_metadata={"foo": "bar"}
+            event_metadata={"foo": "bar"},
         )
         print()
 
@@ -202,6 +194,7 @@ def main():
     except Exception as e:
         print(f"❌ Error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 
