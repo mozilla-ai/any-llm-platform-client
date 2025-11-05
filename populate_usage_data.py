@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
 """
 Script to populate usage data with multiple events for testing the dashboard.
+
+Usage:
+    export ANY_API_KEY="YOUR_KEY_HERE"
+    python populate_usage_data.py
+
+Or:
+    ANY_API_KEY="YOUR_KEY_HERE" python populate_usage_data.py
 """
 
 import sys
+import os
 import uuid
 import requests
 import random
@@ -81,12 +89,21 @@ def post_usage_event(
 
 
 def main():
-    any_llm_key = "ANY.v1.a457b979.4fa5956c-GPYu/6TZvBG9xj++fglLvtmVvBPSGBXaTA1U0UVrRV4="
-
     print("=" * 60)
     print("📊 Populating Usage Data")
     print("=" * 60)
     print()
+
+    # Get ANY_API_KEY from environment
+    any_llm_key = os.environ.get("ANY_API_KEY")
+    if not any_llm_key:
+        print("❌ Error: ANY_API_KEY environment variable not set")
+        print()
+        print("Please set it using:")
+        print('  export ANY_API_KEY="ANY.v1.xxx.xxx-xxx"')
+        print("Or:")
+        print('  ANY_API_KEY="ANY.v1.xxx.xxx-xxx" python populate_usage_data.py')
+        sys.exit(1)
 
     # Parse key
     print("🔍 Parsing ANY_LLM_KEY...")
