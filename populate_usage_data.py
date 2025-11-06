@@ -76,7 +76,7 @@ def post_usage_event(
         json=payload,
         headers={
             "encryption-key": public_key,
-            "X-Solved-Challenge": str(solved_challenge)
+            "AnyLLM-Challenge-Response": str(solved_challenge)
         }
     )
 
@@ -122,8 +122,8 @@ def main():
         {"provider": "anthropic", "model": "claude-3-opus", "input": 1800, "output": 900},
         {"provider": "anthropic", "model": "claude-3-sonnet", "input": 1200, "output": 600},
         {"provider": "anthropic", "model": "claude-3-haiku", "input": 600, "output": 300},
-        {"provider": "google", "model": "gemini-pro", "input": 1000, "output": 500},
-        {"provider": "google", "model": "gemini-pro", "input": 1500, "output": 750},
+        {"provider": "gemini", "model": "gemini-2.5-flash", "input": 1000, "output": 500},
+        {"provider": "gemini", "model": "gemini-2.5-flash", "input": 1500, "output": 750},
     ]
 
     success_count = 0
@@ -141,7 +141,7 @@ def main():
                 f"{API_BASE_URL}/provider-keys/{config['provider']}",
                 headers={
                     "encryption-key": public_key,
-                    "X-Solved-Challenge": str(solved_challenge)
+                    "AnyLLM-Challenge-Response": str(solved_challenge)
                 }
             )
 

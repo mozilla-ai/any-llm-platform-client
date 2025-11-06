@@ -64,7 +64,7 @@ def post_usage_event(
     response = requests.post(
         f"{API_BASE_URL}/usage-events/",
         json=payload,
-        headers={"encryption-key": public_key, "X-Solved-Challenge": str(solved_challenge)},
+        headers={"encryption-key": public_key, "AnyLLM-Challenge-Response": str(solved_challenge)},
     )
 
     if response.status_code != 204:

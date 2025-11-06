@@ -300,7 +300,7 @@ def fetch_provider_key(provider: str, public_key: str, solved_challenge: uuid.UU
 
     response = requests.get(
         f"{API_BASE_URL}/provider-keys/{provider}",
-        headers={"encryption-key": public_key, "X-Solved-Challenge": str(solved_challenge)},
+        headers={"encryption-key": public_key, "AnyLLM-Challenge-Response": str(solved_challenge)},
     )
 
     if response.status_code != 200:
