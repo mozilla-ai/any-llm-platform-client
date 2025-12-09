@@ -1,18 +1,77 @@
+[build-system]
+requires = ["setuptools>=61", "setuptools_scm[toml]>=6.3.1", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "decrypter"
-version = "0.1.0"
-description = "Add your description here"
+name = "any-api-decrypter"
 readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.11"
+dynamic = ["version"]
+description = "Decrypt provider API keys using X25519 sealed box encryption and challenge-response authentication"
+authors = [
+    {name = "Mozilla AI", email = "info@mozilla.ai"},
+]
+keywords = ["encryption", "x25519", "api-key", "decryption", "sealed-box"]
 dependencies = [
-    "bcrypt>=5.0.0",
-    "cryptography>=46.0.3",
     "pynacl>=1.6.0",
     "requests>=2.32.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit>=4.3.0",
+    "ruff>=0.14.3",
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+docs = [
+    "mkdocs",
+    "mkdocs-material",
+]
+
+lint = [
+    "mypy",
+    "types-requests",
+]
+
+tests = [
+    "pytest>=8,<9",
+    "pytest-cov>=4.0.0",
+]
+
+[project.scripts]
+any-api-decrypter = "any_api_decrypter.cli:main"
+
+[tool.setuptools.package-data]
+"*" = ["py.typed"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+exclude = ["tests", "tests.*"]
+namespaces = false
+
+[tool.setuptools_scm]
+write_to = "src/any_api_decrypter/_version.py"
+
+[tool.ruff]
+line-length = 120
+
+[tool.pytest.ini_options]
+timeout = 120
+filterwarnings = [
+    "error",
 ]
 
 [dependency-groups]
 dev = [
     "pre-commit>=4.3.0",
     "ruff>=0.14.3",
+]
+
+test = [
+    "pytest>=8,<9",
+    "pytest-cov>=4.0.0",
+    "pytest-timeout",
 ]
