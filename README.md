@@ -96,12 +96,13 @@ public_key = extract_public_key(private_key)
 
 # Authenticate with challenge-response using the client
 client = AnyApiClient()
-challenge_data = client.create_challenge(public_key, verbose=False)
-solved_challenge = client.solve_challenge(challenge_data["encrypted_challenge"], private_key, verbose=False)
+# challenge/solve (logging controls visibility)
+challenge_data = client.create_challenge(public_key)
+solved_challenge = client.solve_challenge(challenge_data["encrypted_challenge"], private_key)
 
 # Fetch and decrypt provider key
-provider_key_data = client.fetch_provider_key("openai", public_key, solved_challenge, verbose=False)
-api_key = client.decrypt_provider_key_value(provider_key_data["encrypted_key"], private_key, verbose=False)
+provider_key_data = client.fetch_provider_key("openai", public_key, solved_challenge)
+api_key = client.decrypt_provider_key_value(provider_key_data["encrypted_key"], private_key)
 
 print(f"API Key: {api_key}")
 ```

@@ -1,5 +1,6 @@
 """Click-based command-line interface for the provider key decrypter."""
 
+import logging
 import os
 
 import click
@@ -69,12 +70,17 @@ def _run_decryption(provider: str, any_llm_key: str, client: AnyApiClient) -> st
 @click.argument("provider", required=False)
 @click.option("--api-base-url", "api_base_url", help="API base URL to use (overrides default)")
 @click.option("--any-llm-key", "any_llm_key", help="ANY_LLM_KEY string to use (skips prompt)")
-def main(provider: str | None, api_base_url: str | None, any_llm_key: str | None) -> None:
+@click.option("-v", "--verbose", is_flag=True, help="Enable verbose (DEBUG) logging")
+def main(provider: str | None, api_base_url: str | None, any_llm_key: str | None, verbose: bool = False) -> None:
     """Run the provider key decryption CLI.
 
     If `provider` is omitted, the command will prompt for it interactively.
     """
     try:
+        # Configure simple logging format for CLI usage; library users can
+        # configure logging differently when importing the package.
+        level = logging.DEBUG if verbose else logging.INFO
+        logging.basicConfig(level=level, format="%(message)s")
         # Resolve API base URL from CLI option or environment variable.
         # Priority: CLI option > ANY_API_BASE_URL env var
         api_base_url_env = os.environ.get("ANY_API_BASE_URL")
