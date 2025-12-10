@@ -4,13 +4,7 @@ import os
 
 import click
 
-from .client import (
-    create_challenge,
-    decrypt_provider_key_value,
-    fetch_provider_key,
-    set_api_base_url,
-    solve_challenge,
-)
+from .client import AnyApiClient
 from .crypto import extract_public_key, load_private_key, parse_any_llm_key
 
 
@@ -30,7 +24,7 @@ def _get_any_llm_key(cli_key: str | None) -> str:
     return click.prompt("Paste ANY_LLM_KEY (ANY.v1.<kid>.<fingerprint>-<base64_key>)", hide_input=True)
 
 
-def _run_decryption(provider: str, any_llm_key: str) -> str:
+def _run_decryption(provider: str, any_llm_key: str, client: AnyApiClient) -> str:
     """Perform the decryption workflow and return decrypted API key."""
     # Parse ANY_LLM_KEY
     click.echo("🔍 Parsing ANY_LLM_KEY...")
@@ -49,16 +43,16 @@ def _run_decryption(provider: str, any_llm_key: str) -> str:
     click.echo("✅ Public key extracted")
 
     # Create challenge
-    challenge_data = create_challenge(public_key)
+    challenge_data = client.create_challenge(public_key)
 
     # Solve challenge
-    solved_challenge = solve_challenge(challenge_data["encrypted_challenge"], private_key)
+    solved_challenge = client.solve_challenge(challenge_data["encrypted_challenge"], private_key)
 
     # Fetch provider key
-    provider_key_data = fetch_provider_key(provider, public_key, solved_challenge)
+    provider_key_data = client.fetch_provider_key(provider, public_key, solved_challenge)
 
     # Decrypt provider key
-    decrypted_api_key = decrypt_provider_key_value(provider_key_data["encrypted_key"], private_key)
+    decrypted_api_key = client.decrypt_provider_key_value(provider_key_data["encrypted_key"], private_key)
 
     click.echo("🎉 SUCCESS!")
     click.echo(f"Provider: {provider_key_data['provider']}")
@@ -87,15 +81,15 @@ def main(provider: str | None, api_base_url: str | None, any_llm_key: str | None
         if api_base_url is None and api_base_url_env:
             api_base_url = api_base_url_env
 
-        if api_base_url:
-            set_api_base_url(api_base_url)
+        # Instantiate client with optional API base URL
+        client = AnyApiClient(api_base_url) if api_base_url else AnyApiClient()
 
         if provider is None:
             provider = click.prompt("Enter Provider name (e.g., openai, anthropic)")
 
         any_llm_key_resolved = _get_any_llm_key(any_llm_key)
 
-        _run_decryption(provider, any_llm_key_resolved)
+        _run_decryption(provider, any_llm_key_resolved, client)
 
     except Exception as exc:  # pragma: no cover - top-level CLI error handling
         click.echo(f"❌ Error: {exc}")

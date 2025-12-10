@@ -23,14 +23,7 @@ except PackageNotFoundError:
         __version__ = "0.0.0-dev"
 
 # Export public API
-from .client import (
-    create_challenge,
-    decrypt_provider_key_value,
-    fetch_provider_key,
-    get_api_base_url,
-    set_api_base_url,
-    solve_challenge,
-)
+from .client import AnyApiClient
 from .crypto import (
     KeyComponents,
     decrypt_data,
@@ -46,13 +39,8 @@ __all__ = [
     "load_private_key",
     "extract_public_key",
     "decrypt_data",
-    # Client functions
-    "create_challenge",
-    "solve_challenge",
-    "fetch_provider_key",
-    "decrypt_provider_key_value",
-    "set_api_base_url",
-    "get_api_base_url",
+    # Client class
+    "AnyApiClient",
     # Version
     "__version__",
 ]

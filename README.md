@@ -52,16 +52,16 @@ any-api-decrypter openai
 
 ### Configuring the API Base URL
 
-By default, the client connects to `http://localhost:8000/api/v1`. To change this, use the `set_api_base_url()` function in your code:
+By default, the client connects to `http://localhost:8000/api/v1`. To change this, instantiate `AnyApiClient` with a custom `api_base_url` or call `set_api_base_url` on the client instance:
 
 ```python
-from any_api_decrypter.client import set_api_base_url, create_challenge
+from any_api_decrypter.client import AnyApiClient
 
-# Configure a different backend
-set_api_base_url("https://api.example.com/v1")
+# Create a client that talks to a different backend
+client = AnyApiClient(api_base_url="https://api.example.com/v1")
 
-# Now all API calls will use the new base URL
-challenge_data = create_challenge(public_key)
+# Now calls on `client` will use the configured base URL
+challenge_data = client.create_challenge(public_key)
 ```
 
 Or set the environment variable before running the CLI. The CLI will use the
@@ -82,12 +82,7 @@ from any_api_decrypter import (
     extract_public_key,
     decrypt_data,
 )
-from any_api_decrypter.client import (
-    create_challenge,
-    solve_challenge,
-    fetch_provider_key,
-    decrypt_provider_key_value,
-)
+from any_api_decrypter.client import AnyApiClient
 
 # Parse the key
 any_llm_key = "ANY.v1...."
@@ -99,13 +94,14 @@ private_key = load_private_key(private_key_base64)
 # Extract public key
 public_key = extract_public_key(private_key)
 
-# Authenticate with challenge-response
-challenge_data = create_challenge(public_key, verbose=False)
-solved_challenge = solve_challenge(challenge_data["encrypted_challenge"], private_key, verbose=False)
+# Authenticate with challenge-response using the client
+client = AnyApiClient()
+challenge_data = client.create_challenge(public_key, verbose=False)
+solved_challenge = client.solve_challenge(challenge_data["encrypted_challenge"], private_key, verbose=False)
 
 # Fetch and decrypt provider key
-provider_key_data = fetch_provider_key("openai", public_key, solved_challenge, verbose=False)
-api_key = decrypt_provider_key_value(provider_key_data["encrypted_key"], private_key, verbose=False)
+provider_key_data = client.fetch_provider_key("openai", public_key, solved_challenge, verbose=False)
+api_key = client.decrypt_provider_key_value(provider_key_data["encrypted_key"], private_key, verbose=False)
 
 print(f"API Key: {api_key}")
 ```
