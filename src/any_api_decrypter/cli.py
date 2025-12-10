@@ -1,201 +1,106 @@
-"""Command-line interface for the provider key decrypter."""
+"""Click-based command-line interface for the provider key decrypter."""
 
+from typing import Optional
 import os
-import sys
-import traceback
 
-import requests
+import click
 
 from .client import (
     create_challenge,
     decrypt_provider_key_value,
     fetch_provider_key,
+    set_api_base_url,
     solve_challenge,
 )
 from .crypto import extract_public_key, load_private_key, parse_any_llm_key
 
 
-def get_any_llm_key() -> str:
-    """Get ANY_LLM_KEY from environment variable or prompt user.
+def _get_any_llm_key(cli_key: Optional[str]) -> str:
+    """Resolve ANY_LLM_KEY from CLI option, env, or prompt.
 
-    Returns:
-        str: The ANY_LLM_KEY string.
-
-    Raises:
-        SystemExit: If the key is not provided or user cancels.
+    Priority: CLI option > environment variable > interactive prompt
     """
-    any_llm_key = os.getenv("ANY_LLM_KEY")
+    if cli_key:
+        return cli_key
 
-    if any_llm_key:
-        print("✅ Using ANY_LLM_KEY from environment variable")
-        return any_llm_key
+    env_key = __import__("os").environ.get("ANY_LLM_KEY")
+    if env_key:
+        click.echo("✅ Using ANY_LLM_KEY from environment variable")
+        return env_key
 
-    print("\n🔑 ANY_LLM_KEY Required")
-    print("=" * 60)
-    print("Please paste your ANY_LLM_KEY (generated from the project page)")
-    print("Format: ANY.v1.<kid>.<fingerprint>-<base64_key>")
-    print()
-    print("💡 TIP: Set as environment variable:")
-    print("   export ANY_LLM_KEY='your-key-here'")
-    print()
-
-    try:
-        any_llm_key = input("Paste key and press Enter: ").strip()
-        if not any_llm_key:
-            print("❌ ANY_LLM_KEY is required")
-            sys.exit(1)
-        return any_llm_key
-    except KeyboardInterrupt:
-        print("\n👋 Goodbye!")
-        sys.exit(0)
+    return click.prompt("Paste ANY_LLM_KEY (ANY.v1.<kid>.<fingerprint>-<base64_key>)", hide_input=True)
 
 
-def interactive_mode() -> str:
-    """Interactive mode - asks for provider only.
+def _run_decryption(provider: str, any_llm_key: str) -> str:
+    """Perform the decryption workflow and return decrypted API key."""
+    # Parse ANY_LLM_KEY
+    click.echo("🔍 Parsing ANY_LLM_KEY...")
+    kid, fingerprint, private_key_base64 = parse_any_llm_key(any_llm_key)
+    click.echo(f"✅ Key ID: {kid}")
+    click.echo(f"✅ Fingerprint: {fingerprint}")
 
-    Returns:
-        str: The provider name entered by the user.
+    # Load private key
+    click.echo("🔑 Loading X25519 private key...")
+    private_key = load_private_key(private_key_base64)
+    click.echo("✅ Private key loaded")
 
-    Raises:
-        SystemExit: If user cancels or no provider is entered.
-    """
-    print("\n🔐 Interactive Mode")
-    print("=" * 60)
-    print("💡 Find provider names in the web UI")
-    print()
+    # Extract public key
+    click.echo("🔑 Extracting public key...")
+    public_key = extract_public_key(private_key)
+    click.echo("✅ Public key extracted")
 
-    try:
-        provider = input("Enter Provider name (e.g., openai, anthropic): ").strip()
-        if not provider:
-            print("❌ Provider name is required")
-            sys.exit(1)
+    # Create challenge
+    challenge_data = create_challenge(public_key)
 
-        return provider
+    # Solve challenge
+    solved_challenge = solve_challenge(challenge_data["encrypted_challenge"], private_key)
 
-    except KeyboardInterrupt:
-        print("\n👋 Goodbye!")
-        sys.exit(0)
+    # Fetch provider key
+    provider_key_data = fetch_provider_key(provider, public_key, solved_challenge)
+
+    # Decrypt provider key
+    decrypted_api_key = decrypt_provider_key_value(provider_key_data["encrypted_key"], private_key)
+
+    click.echo("🎉 SUCCESS!")
+    click.echo(f"Provider: {provider_key_data['provider']}")
+    click.echo(f"Project ID: {provider_key_data['project_id']}")
+    click.echo(f"Created: {provider_key_data['created_at']}")
+    click.echo("")
+    click.echo("🔑 Decrypted API Key:")
+    click.echo(f"   {decrypted_api_key}")
+
+    return decrypted_api_key
 
 
-def decrypt_provider_key(provider: str) -> str:
-    """Decrypt a provider key for the given provider.
+@click.command()
+@click.argument("provider", required=False)
+@click.option("--api-base-url", "api_base_url", help="API base URL to use (overrides default)")
+@click.option("--any-llm-key", "any_llm_key", help="ANY_LLM_KEY string to use (skips prompt)")
+def main(provider: Optional[str], api_base_url: Optional[str], any_llm_key: Optional[str]) -> None:
+    """Run the provider key decryption CLI.
 
-    This is the main logic that can be used programmatically or from the CLI.
-
-    Args:
-        provider: Provider name (e.g., "openai", "anthropic").
-
-    Returns:
-        str: The decrypted provider API key.
-
-    Raises:
-        SystemExit: If any step fails.
-        Exception: If decryption or API communication fails.
+    If `provider` is omitted, the command will prompt for it interactively.
     """
     try:
-        # Get ANY_LLM_KEY
-        any_llm_key = get_any_llm_key()
-        print()
+        # Resolve API base URL from CLI option or environment variable.
+        # Priority: CLI option > ANY_API_BASE_URL env var
+        api_base_url_env = os.environ.get("ANY_API_BASE_URL")
+        if api_base_url is None and api_base_url_env:
+            api_base_url = api_base_url_env
 
-        # Parse ANY_LLM_KEY
-        print("🔍 Parsing ANY_LLM_KEY...")
-        kid, fingerprint, private_key_base64 = parse_any_llm_key(any_llm_key)
-        print(f"✅ Key ID: {kid}")
-        print(f"✅ Fingerprint: {fingerprint}")
-        print()
+        if api_base_url:
+            set_api_base_url(api_base_url)
 
-        # Load private key
-        print("🔑 Loading X25519 private key...")
-        private_key = load_private_key(private_key_base64)
-        print("✅ Private key loaded")
-        print()
+        if provider is None:
+            provider = click.prompt("Enter Provider name (e.g., openai, anthropic)")
 
-        # Extract public key
-        print("🔑 Extracting public key...")
-        public_key = extract_public_key(private_key)
-        print("✅ Public key extracted")
-        print()
+        any_llm_key_resolved = _get_any_llm_key(any_llm_key)
 
-        # Step 1: Create challenge
-        challenge_data = create_challenge(public_key)
-        print()
+        _run_decryption(provider, any_llm_key_resolved)
 
-        # Step 2: Solve challenge
-        solved_challenge = solve_challenge(challenge_data["encrypted_challenge"], private_key)
-        print()
-
-        # Step 3: Fetch provider key (encrypted)
-        provider_key_data = fetch_provider_key(provider, public_key, solved_challenge)
-        print()
-
-        # Step 4: Decrypt the provider key
-        decrypted_api_key = decrypt_provider_key_value(
-            provider_key_data["encrypted_key"], private_key
-        )
-        print()
-
-        # Display results
-        print("=" * 60)
-        print("🎉 SUCCESS!")
-        print("=" * 60)
-        print(f"Provider: {provider_key_data['provider']}")
-        print(f"Project ID: {provider_key_data['project_id']}")
-        print(f"Created: {provider_key_data['created_at']}")
-        print()
-        print("🔑 Decrypted API Key:")
-        print(f"   {decrypted_api_key}")
-        print("=" * 60)
-
-        return decrypted_api_key
-
-    except requests.RequestException as e:
-        print(f"❌ Network error: {e}")
-        sys.exit(1)
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        traceback.print_exc()
-        sys.exit(1)
-
-
-def main() -> None:
-    """Main entry point for the provider key decryption script.
-
-    Supports both interactive and direct modes:
-    - Interactive: Prompts for provider name
-    - Direct: Accepts provider as command-line argument
-    """
-    # Parse command line arguments
-    if len(sys.argv) == 2:
-        provider = sys.argv[1]
-        interactive = False
-    elif len(sys.argv) == 1:
-        provider = None
-        interactive = True
-    else:
-        print("Usage:")
-        print("  any-api-decrypter             # Interactive mode")
-        print("  any-api-decrypter <provider>  # Direct mode")
-        print("\nExample:")
-        print("  any-api-decrypter openai")
-        sys.exit(1)
-
-    print("=" * 60)
-    print("🔐 Provider Key Decryption")
-    print("=" * 60)
-
-    if not interactive:
-        print(f"Provider: {provider}")
-
-    print("=" * 60)
-    print()
-
-    # Get provider if interactive mode
-    if interactive:
-        provider = interactive_mode()
-        print()
-
-    # Run decryption
-    decrypt_provider_key(provider)
+    except Exception as exc:  # pragma: no cover - top-level CLI error handling
+        click.echo(f"❌ Error: {exc}")
+        raise
 
 
 if __name__ == "__main__":

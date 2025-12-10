@@ -16,6 +16,7 @@ keywords = ["encryption", "x25519", "api-key", "decryption", "sealed-box"]
 dependencies = [
     "pynacl>=1.6.0",
     "requests>=2.32.5",
+    "click>=8.1.0",
 ]
 
 [project.optional-dependencies]

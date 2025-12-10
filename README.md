@@ -63,10 +63,13 @@ set_api_base_url("https://api.example.com/v1")
 challenge_data = create_challenge(public_key)
 ```
 
-Or set the environment variable before running the CLI:
+Or set the environment variable before running the CLI. The CLI will use the
+first defined of `--api-base-url` or `ANY_API_BASE_URL`.
+
 ```bash
-# Not directly supported via environment variable in CLI mode
-# Use the Python library approach for custom URLs
+# Example: temporarily point CLI to a staging backend
+export ANY_API_BASE_URL="https://staging-api.example.com/v1"
+any-api-decrypter openai
 ```
 
 ### As a Python Library

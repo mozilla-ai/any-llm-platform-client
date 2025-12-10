@@ -11,6 +11,7 @@ resolution-markers = [
 name = "any-api-decrypter"
 source = { editable = "." }
 dependencies = [
+    { name = "click" },
     { name = "pynacl" },
     { name = "requests" },
 ]
@@ -48,6 +49,7 @@ test = [
 
 [package.metadata]
 requires-dist = [
+    { name = "click", specifier = ">=8.1.0" },
     { name = "mkdocs", marker = "extra == 'docs'" },
     { name = "mkdocs-material", marker = "extra == 'docs'" },
     { name = "mypy", marker = "extra == 'lint'" },
