@@ -8,9 +8,19 @@ Example:
     >>> from any_api_decrypter.client import fetch_provider_key, create_challenge
 """
 
-__version__ = "0.1.0"
-__author__ = "Mozilla AI"
-__license__ = "MIT"
+from importlib.metadata import PackageNotFoundError, version as _pkg_version
+
+
+try:
+    # Prefer the installed package version (PEP 566 metadata)
+    __version__ = _pkg_version("any-api-decrypter")
+except PackageNotFoundError:
+    # Local development: fall back to generated _version or a sensible default
+    try:
+        # setuptools_scm may write a generated version file at build time
+        from ._version import version as __version__  # type: ignore
+    except Exception:
+        __version__ = "0.0.0-dev"
 
 # Export public API
 from .client import (

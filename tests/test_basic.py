@@ -6,8 +6,10 @@ import pytest
 def test_import():
     """Test that the package can be imported."""
     import any_api_decrypter
-
-    assert any_api_decrypter.__version__ == "0.1.0"
+    # Version is provided by setuptools_scm during development or package metadata when installed.
+    assert hasattr(any_api_decrypter, "__version__")
+    assert isinstance(any_api_decrypter.__version__, str)
+    assert len(any_api_decrypter.__version__) > 0
 
 
 def test_parse_any_llm_key():

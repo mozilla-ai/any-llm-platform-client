@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61", "setuptools_scm[toml]>=6.3.1", "wheel"]
+requires = ["setuptools>=65", "setuptools_scm[toml]>=8.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -54,7 +54,7 @@ exclude = ["tests", "tests.*"]
 namespaces = false
 
 [tool.setuptools_scm]
-write_to = "src/any_api_decrypter/_version.py"
+version_file = "src/any_api_decrypter/_version.py"
 
 [tool.ruff]
 line-length = 120
