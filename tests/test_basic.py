@@ -13,11 +13,11 @@ def test_import():
     assert len(any_api_decrypter.__version__) > 0
 
 
-def test_parse_any_llm_key():
+def test_parse_any_llm_key(valid_any_llm_key):
     """Test parsing a valid ANY_LLM_KEY."""
     from any_api_decrypter import parse_any_llm_key
 
-    key = "ANY.v1.12345678.abcdef01-YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY3OA=="
+    key = valid_any_llm_key
     components = parse_any_llm_key(key)
 
     assert components.key_id == "12345678"
