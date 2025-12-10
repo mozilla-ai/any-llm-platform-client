@@ -22,7 +22,8 @@ For development mode using `uv`:
 ```bash
 git clone https://github.com/mozilla-ai/any-api-decrypter-cli
 cd any-api-decrypter-cli
-uv sync
+uv sync --dev
+uv run pre-commit install
 uv run any-api-decrypter <provider>
 ```
 

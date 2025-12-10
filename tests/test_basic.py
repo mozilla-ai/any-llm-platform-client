@@ -22,7 +22,9 @@ def test_parse_any_llm_key():
 
     assert components.key_id == "12345678"
     assert components.public_key_fingerprint == "abcdef01"
-    assert components.base64_encoded_private_key == "YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY3OA=="
+    assert (
+        components.base64_encoded_private_key == "YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY3OA=="
+    )  # pragma: allowlist secret
 
 
 def test_parse_any_llm_key_invalid_format():

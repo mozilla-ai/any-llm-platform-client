@@ -53,7 +53,7 @@ namespaces = false
 version_file = "src/any_api_decrypter/_version.py"
 
 [tool.ruff]
-line-length = 120
+extend = "ruff.toml"
 
 [tool.pytest.ini_options]
 timeout = 120
