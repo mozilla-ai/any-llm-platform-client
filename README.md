@@ -143,15 +143,15 @@ Generate your ANY_LLM_KEY from the project page in the web UI.
 
 Run tests:
 ```bash
-pytest
+uv run pytest
 ```
 
 Run tests with coverage:
 ```bash
-pytest --cov=src/any_api_decrypter
+uv run pytest --cov=src/any_api_decrypter
 ```
 
 Run linting:
 ```bash
-ruff check src tests
+uv run pre-commit run --all-files
 ```

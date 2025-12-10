@@ -15,12 +15,10 @@ dependencies = [
     "click>=8.1.0",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
-    "pre-commit>=4.3.0",
-    "ruff>=0.14.3",
-    "pytest>=7.0.0",
-    "pytest-cov>=4.0.0",
+    {include-group = "lint"},
+    {include-group = "test"}
 ]
 
 docs = [
@@ -29,13 +27,14 @@ docs = [
 ]
 
 lint = [
-    "mypy",
-    "types-requests",
+    "pre-commit>=4.3.0",
+    "ruff>=0.14.3",
 ]
 
-tests = [
+test = [
     "pytest>=8,<9",
     "pytest-cov>=4.0.0",
+    "pytest-timeout",
 ]
 
 [project.scripts]
@@ -59,16 +58,4 @@ extend = "ruff.toml"
 timeout = 120
 filterwarnings = [
     "error",
-]
-
-[dependency-groups]
-dev = [
-    "pre-commit>=4.3.0",
-    "ruff>=0.14.3",
-]
-
-test = [
-    "pytest>=8,<9",
-    "pytest-cov>=4.0.0",
-    "pytest-timeout",
 ]
