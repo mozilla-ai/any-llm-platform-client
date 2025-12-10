@@ -8,8 +8,8 @@ Example:
     >>> from any_api_decrypter.client import fetch_provider_key, create_challenge
 """
 
-from importlib.metadata import PackageNotFoundError, version as _pkg_version
-
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
 
 try:
     # Prefer the installed package version (PEP 566 metadata)

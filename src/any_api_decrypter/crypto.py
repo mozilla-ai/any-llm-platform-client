@@ -9,9 +9,7 @@ try:
     import nacl.bindings
     import nacl.public
 except ImportError as err:
-    raise ImportError(
-        "Missing required PyNaCl package. Install with: pip install PyNaCl"
-    ) from err
+    raise ImportError("Missing required PyNaCl package. Install with: pip install PyNaCl") from err
 
 
 class KeyComponents(NamedTuple):
@@ -63,9 +61,7 @@ def parse_any_llm_key(any_llm_key: str) -> KeyComponents:
     match = re.match(r"^ANY\.v1\.([^.]+)\.([^-]+)-(.+)$", any_llm_key)
 
     if not match:
-        raise ValueError(
-            "Invalid ANY_LLM_KEY format. Expected: ANY.v1.<key_id>.<fingerprint>-<base64_key>"
-        )
+        raise ValueError("Invalid ANY_LLM_KEY format. Expected: ANY.v1.<key_id>.<fingerprint>-<base64_key>")
 
     key_id, public_key_fingerprint, base64_encoded_private_key = match.groups()
 
@@ -91,9 +87,7 @@ def load_private_key(private_key_base64: str) -> nacl.public.PrivateKey:
     """
     private_key_bytes = base64.b64decode(private_key_base64)
     if len(private_key_bytes) != 32:
-        raise ValueError(
-            f"X25519 private key must be 32 bytes, got {len(private_key_bytes)}"
-        )
+        raise ValueError(f"X25519 private key must be 32 bytes, got {len(private_key_bytes)}")
     return nacl.public.PrivateKey(private_key_bytes)
 
 
@@ -114,9 +108,7 @@ def extract_public_key(private_key: nacl.public.PrivateKey) -> str:
     return base64.b64encode(public_key_bytes).decode("utf-8")
 
 
-def decrypt_data(
-    encrypted_data_base64: str, private_key: nacl.public.PrivateKey
-) -> str:
+def decrypt_data(encrypted_data_base64: str, private_key: nacl.public.PrivateKey) -> str:
     """Decrypt data using X25519 sealed box with XChaCha20-Poly1305.
 
     Format: ephemeral_public_key (32 bytes) + ciphertext
@@ -158,9 +150,7 @@ def decrypt_data(
     # Compute shared secret using X25519 ECDH.
     # This combines the ephemeral private key (held by sender, now destroyed)
     # with the recipient's public key to derive a shared symmetric key.
-    shared_secret = nacl.bindings.crypto_scalarmult(
-        bytes(private_key), ephemeral_public_key
-    )
+    shared_secret = nacl.bindings.crypto_scalarmult(bytes(private_key), ephemeral_public_key)
 
     # CRITICAL SECURITY: Derive nonce deterministically from public keys.
     #

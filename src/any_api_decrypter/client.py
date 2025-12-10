@@ -51,9 +51,7 @@ def create_challenge(public_key: str, verbose: bool = True) -> dict:
     if verbose:
         print("📝 Creating authentication challenge...")
 
-    response = requests.post(
-        f"{API_BASE_URL}/auth/", json={"encryption_key": public_key}
-    )
+    response = requests.post(f"{API_BASE_URL}/auth/", json={"encryption_key": public_key})
 
     if response.status_code != 200:
         if verbose:
@@ -61,9 +59,7 @@ def create_challenge(public_key: str, verbose: bool = True) -> dict:
             print(response.json())
 
             if "No project found" in str(response.json()):
-                print(
-                    "\n⚠️  The public key from your ANY_LLM_KEY doesn't match any project."
-                )
+                print("\n⚠️  The public key from your ANY_LLM_KEY doesn't match any project.")
                 print("Solution: Go to your project page and generate a new API key.")
         sys.exit(1)
 
@@ -73,9 +69,7 @@ def create_challenge(public_key: str, verbose: bool = True) -> dict:
     return data
 
 
-def solve_challenge(
-    encrypted_challenge: str, private_key: object, verbose: bool = True
-) -> uuid.UUID:
+def solve_challenge(encrypted_challenge: str, private_key: object, verbose: bool = True) -> uuid.UUID:
     """Decrypt the server's challenge to prove key possession.
 
     Decrypts the server's encrypted challenge using the sealed box construction.
@@ -153,9 +147,7 @@ def fetch_provider_key(
     return data
 
 
-def decrypt_provider_key_value(
-    encrypted_key: str, private_key: object, verbose: bool = True
-) -> str:
+def decrypt_provider_key_value(encrypted_key: str, private_key: object, verbose: bool = True) -> str:
     """Decrypt the provider's API key to plaintext.
 
     Decrypts the provider's API key (e.g., OpenAI API key) using the sealed box

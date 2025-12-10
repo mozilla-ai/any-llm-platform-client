@@ -1,6 +1,5 @@
 """Click-based command-line interface for the provider key decrypter."""
 
-from typing import Optional
 import os
 
 import click
@@ -15,7 +14,7 @@ from .client import (
 from .crypto import extract_public_key, load_private_key, parse_any_llm_key
 
 
-def _get_any_llm_key(cli_key: Optional[str]) -> str:
+def _get_any_llm_key(cli_key: str | None) -> str:
     """Resolve ANY_LLM_KEY from CLI option, env, or prompt.
 
     Priority: CLI option > environment variable > interactive prompt
@@ -76,7 +75,7 @@ def _run_decryption(provider: str, any_llm_key: str) -> str:
 @click.argument("provider", required=False)
 @click.option("--api-base-url", "api_base_url", help="API base URL to use (overrides default)")
 @click.option("--any-llm-key", "any_llm_key", help="ANY_LLM_KEY string to use (skips prompt)")
-def main(provider: Optional[str], api_base_url: Optional[str], any_llm_key: Optional[str]) -> None:
+def main(provider: str | None, api_base_url: str | None, any_llm_key: str | None) -> None:
     """Run the provider key decryption CLI.
 
     If `provider` is omitted, the command will prompt for it interactively.
