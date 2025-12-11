@@ -8,7 +8,7 @@ resolution-markers = [
 ]
 
 [[package]]
-name = "any-api-decrypter"
+name = "any-llm-crypto"
 source = { editable = "." }
 dependencies = [
     { name = "click" },

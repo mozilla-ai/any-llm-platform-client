@@ -29,7 +29,7 @@ exclude = [
     "dist",
     "node_modules",
     "venv",
-    "src/any_api_decrypter/_version.py",
+    "src/any_llm_crypto/_version.py",
 ]
 
 [lint]

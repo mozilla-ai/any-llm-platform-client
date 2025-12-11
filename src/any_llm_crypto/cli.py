@@ -1,19 +1,15 @@
-"""Click-based command-line interface for the provider key decrypter."""
+"""Click-based command-line interface for the provider key decrypter (renamed)."""
 
 import logging
 import os
 
 import click
 
-from .client import AnyApiClient
+from .client import AnyLLMCryptoClient
 from .crypto import extract_public_key, load_private_key, parse_any_llm_key
 
 
 def _get_any_llm_key(cli_key: str | None) -> str:
-    """Resolve ANY_LLM_KEY from CLI option, env, or prompt.
-
-    Priority: CLI option > environment variable > interactive prompt
-    """
     if cli_key:
         return cli_key
 
@@ -25,34 +21,25 @@ def _get_any_llm_key(cli_key: str | None) -> str:
     return click.prompt("Paste ANY_LLM_KEY (ANY.v1.<kid>.<fingerprint>-<base64_key>)", hide_input=True)
 
 
-def _run_decryption(provider: str, any_llm_key: str, client: AnyApiClient) -> str:
-    """Perform the decryption workflow and return decrypted API key."""
-    # Parse ANY_LLM_KEY
+def _run_decryption(provider: str, any_llm_key: str, client: AnyLLMCryptoClient) -> str:
     click.echo("🔍 Parsing ANY_LLM_KEY...")
     kid, fingerprint, private_key_base64 = parse_any_llm_key(any_llm_key)
     click.echo(f"✅ Key ID: {kid}")
     click.echo(f"✅ Fingerprint: {fingerprint}")
 
-    # Load private key
     click.echo("🔑 Loading X25519 private key...")
     private_key = load_private_key(private_key_base64)
     click.echo("✅ Private key loaded")
 
-    # Extract public key
     click.echo("🔑 Extracting public key...")
     public_key = extract_public_key(private_key)
     click.echo("✅ Public key extracted")
 
-    # Create challenge
     challenge_data = client.create_challenge(public_key)
-
-    # Solve challenge
     solved_challenge = client.solve_challenge(challenge_data["encrypted_challenge"], private_key)
-
-    # Fetch provider key
     provider_key_data = client.fetch_provider_key(provider, public_key, solved_challenge)
-
-    # Decrypt provider key
+    print(provider_key_data["encrypted_key"])
+    print(private_key)
     decrypted_api_key = client.decrypt_provider_key_value(provider_key_data["encrypted_key"], private_key)
 
     click.echo("🎉 SUCCESS!")
@@ -68,33 +55,31 @@ def _run_decryption(provider: str, any_llm_key: str, client: AnyApiClient) -> st
 
 @click.command()
 @click.argument("provider", required=False)
-@click.option("--api-base-url", "api_base_url", help="API base URL to use (overrides default)")
+@click.option(
+    "--any-llm-platform-url",
+    "any_llm_platform_url",
+    help="any llm platform base URL to use (overrides default)",
+)
 @click.option("--any-llm-key", "any_llm_key", help="ANY_LLM_KEY string to use (skips prompt)")
 @click.option("-v", "--verbose", is_flag=True, help="Enable verbose (DEBUG) logging")
-def main(provider: str | None, api_base_url: str | None, any_llm_key: str | None, verbose: bool = False) -> None:
-    """Run the provider key decryption CLI.
-
-    If `provider` is omitted, the command will prompt for it interactively.
-    """
+def main(
+    provider: str | None, any_llm_platform_url: str | None, any_llm_key: str | None, verbose: bool = False
+) -> None:
+    """CLI entry point for decrypting provider API keys from ANY LLM platform."""
     try:
-        # Configure simple logging format for CLI usage; library users can
-        # configure logging differently when importing the package.
         level = logging.DEBUG if verbose else logging.INFO
         logging.basicConfig(level=level, format="%(message)s")
-        # Resolve API base URL from CLI option or environment variable.
-        # Priority: CLI option > ANY_API_BASE_URL env var
-        api_base_url_env = os.environ.get("ANY_API_BASE_URL")
-        if api_base_url is None and api_base_url_env:
-            api_base_url = api_base_url_env
 
-        # Instantiate client with optional API base URL
-        client = AnyApiClient(api_base_url) if api_base_url else AnyApiClient()
+        any_llm_platform_url_env = os.environ.get("ANY_LLM_PLATFORM_URL")
+        if any_llm_platform_url is None and any_llm_platform_url_env:
+            any_llm_platform_url = any_llm_platform_url_env
+
+        client = AnyLLMCryptoClient(any_llm_platform_url) if any_llm_platform_url else AnyLLMCryptoClient()
 
         if provider is None:
             provider = click.prompt("Enter Provider name (e.g., openai, anthropic)")
 
         any_llm_key_resolved = _get_any_llm_key(any_llm_key)
-
         _run_decryption(provider, any_llm_key_resolved, client)
 
     except Exception as exc:  # pragma: no cover - top-level CLI error handling

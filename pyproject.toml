@@ -3,7 +3,7 @@ requires = ["setuptools>=65", "setuptools_scm[toml]>=8.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "any-api-decrypter"
+name = "any-llm-crypto"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.11"
@@ -38,7 +38,7 @@ test = [
 ]
 
 [project.scripts]
-any-api-decrypter = "any_api_decrypter.cli:main"
+any-llm-crypto = "any_llm_crypto.cli:main"
 
 [tool.setuptools.package-data]
 "*" = ["py.typed"]
@@ -49,7 +49,7 @@ exclude = ["tests", "tests.*"]
 namespaces = false
 
 [tool.setuptools_scm]
-version_file = "src/any_api_decrypter/_version.py"
+version_file = "src/any_llm_crypto/_version.py"
 
 [tool.ruff]
 extend = "ruff.toml"

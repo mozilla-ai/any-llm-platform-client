@@ -6,7 +6,7 @@ Python package to decrypt provider API keys using X25519 sealed box encryption a
 
 Install from PyPI:
 ```bash
-pip install any-api-decrypter
+pip install any-llm-crypto
 ```
 
 Or install from source:
@@ -24,7 +24,7 @@ git clone https://github.com/mozilla-ai/any-api-decrypter-cli
 cd any-api-decrypter-cli
 uv sync --dev
 uv run pre-commit install
-uv run any-api-decrypter <provider>
+uv run any-llm-crypto <provider>
 ```
 
 Or enter a shell environment:
@@ -32,7 +32,7 @@ Or enter a shell environment:
 uv sync
 uv venv
 source .venv/bin/activate  # or: .\.venv\Scripts\activate on Windows
-any-api-decrypter <provider>
+any-llm-crypto <provider>
 ```
 
 ## Usage
@@ -42,47 +42,47 @@ any-api-decrypter <provider>
 Interactive mode (prompts for provider):
 ```bash
 export ANY_LLM_KEY='ANY.v1.<kid>.<fingerprint>-<base64_key>'
-any-api-decrypter
+any-llm-crypto
 ```
 
 Direct mode (specify provider as argument):
 ```bash
-any-api-decrypter openai
+any-llm-crypto openai
 ```
 
 ### Configuring the API Base URL
 
-By default, the client connects to `http://localhost:8000/api/v1`. To change this, instantiate `AnyApiClient` with a custom `api_base_url` or call `set_api_base_url` on the client instance:
+By default, the client connects to `http://localhost:8000/api/v1`. To change this, instantiate `AnyLLMCryptoClient` with a custom `any_llm_platform_url` or call `set_any_llm_platform_url` on the client instance:
 
 ```python
-from any_api_decrypter.client import AnyApiClient
+from any_llm_crypto.client import AnyLLMCryptoClient
 
 # Create a client that talks to a different backend
-client = AnyApiClient(api_base_url="https://api.example.com/v1")
+client = AnyLLMCryptoClient(any_llm_platform_url="https://api.example.com/v1")
 
 # Now calls on `client` will use the configured base URL
 challenge_data = client.create_challenge(public_key)
 ```
 
 Or set the environment variable before running the CLI. The CLI will use the
-first defined of `--api-base-url` or `ANY_API_BASE_URL`.
+first defined of `--api-base-url` or `ANY_LLM_PLATFORM_URL`.
 
 ```bash
 # Example: temporarily point CLI to a staging backend
-export ANY_API_BASE_URL="https://staging-api.example.com/v1"
-any-api-decrypter openai
+export ANY_LLM_PLATFORM_URL="https://staging-api.example.com/v1"
+any-llm-crypto openai
 ```
 
 ### As a Python Library
 
 ```python
-from any_api_decrypter import (
+from any_llm_crypto import (
     parse_any_llm_key,
     load_private_key,
     extract_public_key,
     decrypt_data,
 )
-from any_api_decrypter.client import AnyApiClient
+from any_llm_crypto.client import AnyLLMCryptoClient
 
 # Parse the key
 any_llm_key = "ANY.v1...."
@@ -95,7 +95,7 @@ private_key = load_private_key(private_key_base64)
 public_key = extract_public_key(private_key)
 
 # Authenticate with challenge-response using the client
-client = AnyApiClient()
+client = AnyLLMCryptoClient()
 # challenge/solve (logging controls visibility)
 challenge_data = client.create_challenge(public_key)
 solved_challenge = client.solve_challenge(challenge_data["encrypted_challenge"], private_key)
@@ -144,7 +144,7 @@ uv run pytest
 
 Run tests with coverage:
 ```bash
-uv run pytest --cov=src/any_api_decrypter
+uv run pytest --cov=src/any_llm_crypto
 ```
 
 Run linting:
