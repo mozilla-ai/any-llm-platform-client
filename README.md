@@ -133,7 +133,6 @@ Generate your ANY_LLM_KEY from the project page in the web UI.
 ## Security Notes
 
 - The private key from your ANY_LLM_KEY is highly sensitive and should never be logged or transmitted over insecure channels
-- The decrypted API keys should be handled carefully and stored securely
 - This package uses X25519 sealed box encryption with XChaCha20-Poly1305 for strong cryptographic guarantees
 
 ## Development
