@@ -1,12 +1,12 @@
 """API client for communicating with the ANY LLM backend."""
 
 import logging
-import sys
 import uuid
 
 import requests
 
 from .crypto import decrypt_data
+from .exceptions import ChallengeCreationError, ProviderKeyFetchError
 
 logger = logging.getLogger(__name__)
 
@@ -60,10 +60,12 @@ class AnyLLMCryptoClient:
             logger.error("❌ Error creating challenge: %s", response.status_code)
             logger.debug(response.json())
 
+            error_msg = f"Failed to create challenge (status: {response.status_code})"
             if "No project found" in str(response.json()):
                 logger.warning("\n⚠️  The public key from your ANY_LLM_KEY doesn't match any project.")
                 logger.warning("Solution: Go to your project page and generate a new API key.")
-            sys.exit(1)
+                error_msg = "No project found for the provided public key"
+            raise ChallengeCreationError(error_msg)
 
         logger.info("✅ Challenge created")
         return response.json()
@@ -109,7 +111,7 @@ class AnyLLMCryptoClient:
         if response.status_code != 200:
             logger.error("❌ Error fetching provider key: %s", response.status_code)
             logger.debug(response.json())
-            sys.exit(1)
+            raise ProviderKeyFetchError(f"Failed to fetch provider key (status: {response.status_code})")
 
         data = response.json()
         logger.info("✅ Provider key fetched")

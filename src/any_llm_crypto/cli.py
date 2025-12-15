@@ -2,11 +2,13 @@
 
 import logging
 import os
+import sys
 
 import click
 
 from .client import AnyLLMCryptoClient
 from .crypto import extract_public_key, load_private_key, parse_any_llm_key
+from .exceptions import ChallengeCreationError, ProviderKeyFetchError
 
 
 def _get_any_llm_key(cli_key: str | None) -> str:
@@ -82,6 +84,9 @@ def main(
         any_llm_key_resolved = _get_any_llm_key(any_llm_key)
         _run_decryption(provider, any_llm_key_resolved, client)
 
+    except (ChallengeCreationError, ProviderKeyFetchError) as exc:
+        click.echo(f"❌ Error: {exc}")
+        sys.exit(1)
     except Exception as exc:  # pragma: no cover - top-level CLI error handling
         click.echo(f"❌ Error: {exc}")
         raise

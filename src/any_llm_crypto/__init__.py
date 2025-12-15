@@ -29,6 +29,7 @@ from .crypto import (
     load_private_key,
     parse_any_llm_key,
 )
+from .exceptions import ChallengeCreationError, ProviderKeyFetchError
 
 __all__ = [
     # Crypto functions
@@ -39,6 +40,9 @@ __all__ = [
     "decrypt_data",
     # Client class
     "AnyLLMCryptoClient",
+    # Exceptions
+    "ChallengeCreationError",
+    "ProviderKeyFetchError",
     # Version
     "__version__",
 ]
