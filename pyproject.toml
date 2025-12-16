@@ -38,7 +38,7 @@ test = [
 ]
 
 [project.scripts]
-any-llm-client = "any_llm_client.cli:main"
+any-llm = "any_llm_client.cli:main"
 
 [tool.setuptools.package-data]
 "*" = ["py.typed"]

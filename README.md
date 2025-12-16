@@ -24,7 +24,7 @@ git clone https://github.com/mozilla-ai/any-api-decrypter-cli
 cd any-api-decrypter-cli
 uv sync --dev
 uv run pre-commit install
-uv run any-llm-client <provider>
+uv run any-llm <provider>
 ```
 
 Or enter a shell environment:
@@ -32,7 +32,7 @@ Or enter a shell environment:
 uv sync
 uv venv
 source .venv/bin/activate  # or: .\.venv\Scripts\activate on Windows
-any-llm-client <provider>
+any-llm <provider>
 ```
 
 ## Usage
@@ -42,12 +42,12 @@ any-llm-client <provider>
 Interactive mode (prompts for provider):
 ```bash
 export ANY_LLM_KEY='ANY.v1.<kid>.<fingerprint>-<base64_key>'
-any-llm-client
+any-llm
 ```
 
 Direct mode (specify provider as argument):
 ```bash
-any-llm-client openai
+any-llm openai
 ```
 
 ### Configuring the API Base URL
@@ -70,7 +70,7 @@ first defined of `--api-base-url` or `ANY_LLM_PLATFORM_URL`.
 ```bash
 # Example: temporarily point CLI to a staging backend
 export ANY_LLM_PLATFORM_URL="https://staging-api.example.com/v1"
-any-llm-client openai
+any-llm openai
 ```
 
 ### As a Python Library
