@@ -1,26 +1,26 @@
-"""Tests for the AnyLLMClient with httpx."""
+"""Tests for the AnyLLMPlatformClient with httpx."""
 
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from any_llm_client import AnyLLMClient, ChallengeCreationError, ProviderKeyFetchError
+from any_llm_platform_client import AnyLLMPlatformClient, ChallengeCreationError, ProviderKeyFetchError
 
 
 def test_client_default_url():
-    client = AnyLLMClient()
+    client = AnyLLMPlatformClient()
     assert client.any_llm_platform_url == "http://localhost:8000/api/v1"
 
 
 def test_client_custom_url():
     custom_url = "https://api.example.com/v1"
-    client = AnyLLMClient(custom_url)
+    client = AnyLLMPlatformClient(custom_url)
     assert client.any_llm_platform_url == custom_url
 
 
 def test_create_challenge_success():
-    client = AnyLLMClient("https://api.example.com")
+    client = AnyLLMPlatformClient("https://api.example.com")
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.json.return_value = {"encrypted_challenge": "test-challenge"}
@@ -42,7 +42,7 @@ def test_create_challenge_success():
 
 
 def test_create_challenge_error():
-    client = AnyLLMClient("https://api.example.com")
+    client = AnyLLMPlatformClient("https://api.example.com")
     mock_response = MagicMock()
     mock_response.status_code = 400
     mock_response.json.return_value = {"error": "Bad request"}
@@ -59,7 +59,7 @@ def test_create_challenge_error():
 
 
 def test_create_challenge_no_project_error():
-    client = AnyLLMClient("https://api.example.com")
+    client = AnyLLMPlatformClient("https://api.example.com")
     mock_response = MagicMock()
     mock_response.status_code = 404
     mock_response.json.return_value = {"error": "No project found"}
@@ -76,7 +76,7 @@ def test_create_challenge_no_project_error():
 
 
 def test_fetch_provider_key_success():
-    client = AnyLLMClient("https://api.example.com")
+    client = AnyLLMPlatformClient("https://api.example.com")
     challenge_uuid = uuid.uuid4()
     mock_response = MagicMock()
     mock_response.status_code = 200
@@ -110,7 +110,7 @@ def test_fetch_provider_key_success():
 
 
 def test_fetch_provider_key_error():
-    client = AnyLLMClient("https://api.example.com")
+    client = AnyLLMPlatformClient("https://api.example.com")
     challenge_uuid = uuid.uuid4()
     mock_response = MagicMock()
     mock_response.status_code = 401
@@ -129,12 +129,12 @@ def test_fetch_provider_key_error():
 
 @pytest.mark.asyncio
 async def test_acreate_challenge_success():
-    client = AnyLLMClient("https://api.example.com")
+    client = AnyLLMPlatformClient("https://api.example.com")
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.json.return_value = {"encrypted_challenge": "test-challenge"}
 
-    with patch("any_llm_client.client.httpx.AsyncClient") as mock_client_class:
+    with patch("any_llm_platform_client.client.httpx.AsyncClient") as mock_client_class:
         mock_client_instance = MagicMock()
         mock_client_instance.post = AsyncMock(return_value=mock_response)
         mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client_instance)
@@ -151,12 +151,12 @@ async def test_acreate_challenge_success():
 
 @pytest.mark.asyncio
 async def test_acreate_challenge_error():
-    client = AnyLLMClient("https://api.example.com")
+    client = AnyLLMPlatformClient("https://api.example.com")
     mock_response = MagicMock()
     mock_response.status_code = 500
     mock_response.json.return_value = {"error": "Internal server error"}
 
-    with patch("any_llm_client.client.httpx.AsyncClient") as mock_client_class:
+    with patch("any_llm_platform_client.client.httpx.AsyncClient") as mock_client_class:
         mock_client_instance = MagicMock()
         mock_client_instance.post = AsyncMock(return_value=mock_response)
         mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client_instance)
@@ -169,7 +169,7 @@ async def test_acreate_challenge_error():
 @pytest.mark.asyncio
 async def test_afetch_provider_key_success():
     """Test successful async provider key fetch."""
-    client = AnyLLMClient("https://api.example.com")
+    client = AnyLLMPlatformClient("https://api.example.com")
     challenge_uuid = uuid.uuid4()
     mock_response = MagicMock()
     mock_response.status_code = 200
@@ -179,7 +179,7 @@ async def test_afetch_provider_key_success():
         "project_id": "proj-456",
     }
 
-    with patch("any_llm_client.client.httpx.AsyncClient") as mock_client_class:
+    with patch("any_llm_platform_client.client.httpx.AsyncClient") as mock_client_class:
         mock_client_instance = MagicMock()
         mock_client_instance.get = AsyncMock(return_value=mock_response)
         mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client_instance)
@@ -203,13 +203,13 @@ async def test_afetch_provider_key_success():
 
 @pytest.mark.asyncio
 async def test_afetch_provider_key_error():
-    client = AnyLLMClient("https://api.example.com")
+    client = AnyLLMPlatformClient("https://api.example.com")
     challenge_uuid = uuid.uuid4()
     mock_response = MagicMock()
     mock_response.status_code = 403
     mock_response.json.return_value = {"error": "Forbidden"}
 
-    with patch("any_llm_client.client.httpx.AsyncClient") as mock_client_class:
+    with patch("any_llm_platform_client.client.httpx.AsyncClient") as mock_client_class:
         mock_client_instance = MagicMock()
         mock_client_instance.get = AsyncMock(return_value=mock_response)
         mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client_instance)

@@ -6,7 +6,7 @@ Python package to decrypt provider API keys using X25519 sealed box encryption a
 
 Install from PyPI:
 ```bash
-pip install any-llm-client
+pip install any-llm-platform-client
 ```
 
 Or install from source:
@@ -52,13 +52,13 @@ any-llm openai
 
 ### Configuring the API Base URL
 
-By default, the client connects to `http://localhost:8000/api/v1`. To change this, instantiate `AnyLLMClient` with a custom `any_llm_platform_url` or set the attribute directly:
+By default, the client connects to `http://localhost:8000/api/v1`. To change this, instantiate `AnyLLMPlatformClient` with a custom `any_llm_platform_url` or set the attribute directly:
 
 ```python
-from any_llm_client.client import AnyLLMClient
+from any_llm_platform_client.client import AnyLLMPlatformClient
 
 # Create a client that talks to a different backend
-client = AnyLLMClient(any_llm_platform_url="https://api.example.com/v1")
+client = AnyLLMPlatformClient(any_llm_platform_url="https://api.example.com/v1")
 
 # Now calls on `client` will use the configured base URL
 challenge_data = client.create_challenge(public_key)
@@ -76,13 +76,13 @@ any-llm openai
 ### As a Python Library
 
 ```python
-from any_llm_client import (
+from any_llm_platform_client import (
     parse_any_llm_key,
     load_private_key,
     extract_public_key,
     decrypt_data,
 )
-from any_llm_client.client import AnyLLMClient
+from any_llm_platform_client.client import AnyLLMPlatformClient
 
 # Parse the key
 any_llm_key = "ANY.v1...."
@@ -95,7 +95,7 @@ private_key = load_private_key(private_key_base64)
 public_key = extract_public_key(private_key)
 
 # Authenticate with challenge-response using the client
-client = AnyLLMClient()
+client = AnyLLMPlatformClient()
 # challenge/solve (logging controls visibility)
 challenge_data = client.create_challenge(public_key)
 solved_challenge = client.solve_challenge(challenge_data["encrypted_challenge"], private_key)
@@ -144,7 +144,7 @@ uv run pytest
 
 Run tests with coverage:
 ```bash
-uv run pytest --cov=src/any_llm_client
+uv run pytest --cov=src/any_llm_platform_client
 ```
 
 Run linting:

@@ -36,7 +36,7 @@ def _handle_provider_key_error(response: httpx.Response) -> None:
     raise ProviderKeyFetchError(f"Failed to fetch provider key (status: {response.status_code})")
 
 
-class AnyLLMClient:
+class AnyLLMPlatformClient:
     """Client for communicating with the ANY LLM backend.
 
     This class encapsulates the any llm platfrom url and provides methods for the
