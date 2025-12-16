@@ -6,7 +6,7 @@ Python package to decrypt provider API keys using X25519 sealed box encryption a
 
 Install from PyPI:
 ```bash
-pip install any-llm-crypto
+pip install any-llm-client
 ```
 
 Or install from source:
@@ -24,7 +24,7 @@ git clone https://github.com/mozilla-ai/any-api-decrypter-cli
 cd any-api-decrypter-cli
 uv sync --dev
 uv run pre-commit install
-uv run any-llm-crypto <provider>
+uv run any-llm-client <provider>
 ```
 
 Or enter a shell environment:
@@ -32,7 +32,7 @@ Or enter a shell environment:
 uv sync
 uv venv
 source .venv/bin/activate  # or: .\.venv\Scripts\activate on Windows
-any-llm-crypto <provider>
+any-llm-client <provider>
 ```
 
 ## Usage
@@ -42,23 +42,23 @@ any-llm-crypto <provider>
 Interactive mode (prompts for provider):
 ```bash
 export ANY_LLM_KEY='ANY.v1.<kid>.<fingerprint>-<base64_key>'
-any-llm-crypto
+any-llm-client
 ```
 
 Direct mode (specify provider as argument):
 ```bash
-any-llm-crypto openai
+any-llm-client openai
 ```
 
 ### Configuring the API Base URL
 
-By default, the client connects to `http://localhost:8000/api/v1`. To change this, instantiate `AnyLLMCryptoClient` with a custom `any_llm_platform_url` or call `set_any_llm_platform_url` on the client instance:
+By default, the client connects to `http://localhost:8000/api/v1`. To change this, instantiate `AnyLLMClient` with a custom `any_llm_platform_url` or call `set_any_llm_platform_url` on the client instance:
 
 ```python
-from any_llm_crypto.client import AnyLLMCryptoClient
+from any_llm_client.client import AnyLLMClient
 
 # Create a client that talks to a different backend
-client = AnyLLMCryptoClient(any_llm_platform_url="https://api.example.com/v1")
+client = AnyLLMClient(any_llm_platform_url="https://api.example.com/v1")
 
 # Now calls on `client` will use the configured base URL
 challenge_data = client.create_challenge(public_key)
@@ -70,19 +70,19 @@ first defined of `--api-base-url` or `ANY_LLM_PLATFORM_URL`.
 ```bash
 # Example: temporarily point CLI to a staging backend
 export ANY_LLM_PLATFORM_URL="https://staging-api.example.com/v1"
-any-llm-crypto openai
+any-llm-client openai
 ```
 
 ### As a Python Library
 
 ```python
-from any_llm_crypto import (
+from any_llm_client import (
     parse_any_llm_key,
     load_private_key,
     extract_public_key,
     decrypt_data,
 )
-from any_llm_crypto.client import AnyLLMCryptoClient
+from any_llm_client.client import AnyLLMClient
 
 # Parse the key
 any_llm_key = "ANY.v1...."
@@ -95,7 +95,7 @@ private_key = load_private_key(private_key_base64)
 public_key = extract_public_key(private_key)
 
 # Authenticate with challenge-response using the client
-client = AnyLLMCryptoClient()
+client = AnyLLMClient()
 # challenge/solve (logging controls visibility)
 challenge_data = client.create_challenge(public_key)
 solved_challenge = client.solve_challenge(challenge_data["encrypted_challenge"], private_key)
@@ -144,7 +144,7 @@ uv run pytest
 
 Run tests with coverage:
 ```bash
-uv run pytest --cov=src/any_llm_crypto
+uv run pytest --cov=src/any_llm_client
 ```
 
 Run linting:

@@ -6,7 +6,7 @@ import sys
 
 import click
 
-from .client import AnyLLMCryptoClient
+from .client import AnyLLMClient
 from .crypto import extract_public_key, load_private_key, parse_any_llm_key
 from .exceptions import ChallengeCreationError, ProviderKeyFetchError
 
@@ -23,7 +23,7 @@ def _get_any_llm_key(cli_key: str | None) -> str:
     return click.prompt("Paste ANY_LLM_KEY (ANY.v1.<kid>.<fingerprint>-<base64_key>)", hide_input=True)
 
 
-def _run_decryption(provider: str, any_llm_key: str, client: AnyLLMCryptoClient) -> str:
+def _run_decryption(provider: str, any_llm_key: str, client: AnyLLMClient) -> str:
     click.echo("🔍 Parsing ANY_LLM_KEY...")
     kid, fingerprint, private_key_base64 = parse_any_llm_key(any_llm_key)
     click.echo(f"✅ Key ID: {kid}")
@@ -76,7 +76,7 @@ def main(
         if any_llm_platform_url is None and any_llm_platform_url_env:
             any_llm_platform_url = any_llm_platform_url_env
 
-        client = AnyLLMCryptoClient(any_llm_platform_url) if any_llm_platform_url else AnyLLMCryptoClient()
+        client = AnyLLMClient(any_llm_platform_url) if any_llm_platform_url else AnyLLMClient()
 
         if provider is None:
             provider = click.prompt("Enter Provider name (e.g., openai, anthropic)")

@@ -1,4 +1,4 @@
-"""Custom exceptions for the any_llm_crypto package.
+"""Custom exceptions for the any_llm_client package.
 
 This module defines specific exceptions that can be raised during the authentication
 and key retrieval process with the ANY LLM platform.

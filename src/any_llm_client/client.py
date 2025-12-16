@@ -11,7 +11,7 @@ from .exceptions import ChallengeCreationError, ProviderKeyFetchError
 logger = logging.getLogger(__name__)
 
 
-class AnyLLMCryptoClient:
+class AnyLLMClient:
     """Client for communicating with the ANY LLM backend.
 
     This class encapsulates the any llm platfrom url and provides methods for the
