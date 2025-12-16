@@ -52,7 +52,7 @@ any-llm openai
 
 ### Configuring the API Base URL
 
-By default, the client connects to `http://localhost:8000/api/v1`. To change this, instantiate `AnyLLMClient` with a custom `any_llm_platform_url` or call `set_any_llm_platform_url` on the client instance:
+By default, the client connects to `http://localhost:8000/api/v1`. To change this, instantiate `AnyLLMClient` with a custom `any_llm_platform_url` or set the attribute directly:
 
 ```python
 from any_llm_client.client import AnyLLMClient
