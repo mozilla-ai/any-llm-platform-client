@@ -21,7 +21,7 @@ except PackageNotFoundError:
         __version__ = "0.0.0-dev"
 
 # Export public API
-from .client import AnyLLMPlatformClient
+from .client import AnyLLMPlatformClient, DecryptedProviderKey
 from .crypto import (
     KeyComponents,
     decrypt_data,
@@ -38,8 +38,10 @@ __all__ = [
     "load_private_key",
     "extract_public_key",
     "decrypt_data",
-    # Client class
-    "AnyLLMPlatformClient",
+    # Client classes
+    "AnyLLMPlatformClient",  # For decryption with challenge-response
+    "AnyLLMPlatformAPIClient",  # For full API CRUD operations
+    "DecryptedProviderKey",  # Dataclass for decrypted provider key with metadata
     # Exceptions
     "ChallengeCreationError",
     "ProviderKeyFetchError",

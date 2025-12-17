@@ -78,16 +78,21 @@ any-llm openai
 #### Simple Usage (Recommended)
 
 ```python
-from any_llm_platform_client.client import AnyLLMPlatformClient
+from any_llm_platform_client import AnyLLMPlatformClient
 
 # Create client
 client = AnyLLMPlatformClient()
 
-# Get decrypted provider key in one call
+# Get decrypted provider key with metadata in one call
 any_llm_key = "ANY.v1.12345678.abcdef01-YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY3OA=="
-api_key = client.get_decrypted_provider_key(any_llm_key, provider="openai")
+result = client.get_decrypted_provider_key(any_llm_key, provider="openai")
 
-print(f"API Key: {api_key}")
+# Access the decrypted API key and metadata
+print(f"API Key: {result.api_key}")
+print(f"Provider Key ID: {result.provider_key_id}")
+print(f"Project ID: {result.project_id}")
+print(f"Provider: {result.provider}")
+print(f"Created At: {result.created_at}")
 ```
 
 #### Advanced Usage (Manual Steps)
@@ -128,13 +133,14 @@ print(f"API Key: {api_key}")
 
 ```python
 import asyncio
-from any_llm_platform_client.client import AnyLLMPlatformClient
+from any_llm_platform_client import AnyLLMPlatformClient
 
 async def main():
     client = AnyLLMPlatformClient()
     any_llm_key = "ANY.v1...."
-    api_key = await client.aget_decrypted_provider_key(any_llm_key, provider="openai")
-    print(f"API Key: {api_key}")
+    result = await client.aget_decrypted_provider_key(any_llm_key, provider="openai")
+    print(f"API Key: {result.api_key}")
+    print(f"Provider Key ID: {result.provider_key_id}")
 
 asyncio.run(main())
 ```

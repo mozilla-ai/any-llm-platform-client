@@ -2,6 +2,8 @@
 
 import logging
 import uuid
+from dataclasses import dataclass
+from datetime import datetime
 
 import httpx
 
@@ -9,6 +11,27 @@ from .crypto import decrypt_data, extract_public_key, load_private_key, parse_an
 from .exceptions import ChallengeCreationError, ProviderKeyFetchError
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class DecryptedProviderKey:
+    """Container for decrypted provider key and metadata.
+
+    Attributes:
+        api_key: The decrypted API key for the provider
+        provider_key_id: Unique identifier for the provider key
+        project_id: Unique identifier for the project
+        provider: Provider name (e.g., "openai", "anthropic")
+        created_at: Timestamp when the provider key was created
+        updated_at: Timestamp when the provider key was last updated (optional)
+    """
+
+    api_key: str
+    provider_key_id: uuid.UUID
+    project_id: uuid.UUID
+    provider: str
+    created_at: datetime
+    updated_at: datetime | None = None
 
 
 def _handle_challenge_error(response: httpx.Response) -> None:
@@ -194,36 +217,66 @@ class AnyLLMPlatformClient:
         logger.info("✅ Decrypted successfully!")
         return decrypted_key
 
-    def get_decrypted_provider_key(self, any_llm_key: str, provider: str) -> str:
-        """Get a decrypted provider API key using the complete authentication flow.
+    def get_public_key(self, any_llm_key: str) -> str:
+        """Extract the public key from an ANY_LLM_KEY.
 
-        This is a convenience method that handles the entire flow:
+        This convenience method handles:
         1. Parse the ANY_LLM_KEY
-        2. Extract public key from private key
-        3. Create authentication challenge
-        4. Solve the challenge
-        5. Fetch the encrypted provider key
-        6. Decrypt and return the provider key
+        2. Load the private key
+        3. Extract and return the public key
 
         Args:
             any_llm_key: The ANY_LLM_KEY string (format: ANY.v1.<kid>.<fingerprint>-<base64_key>)
-            provider: Provider name (e.g., "openai", "anthropic", "google")
 
         Returns:
-            The decrypted provider API key as a string.
+            Base64-encoded public key string
+
+        Raises:
+            ValueError: If the ANY_LLM_KEY format is invalid.
+
+        Example:
+            >>> client = AnyLLMPlatformClient()
+            >>> public_key = client.get_public_key(
+            ...     any_llm_key="ANY.v1.12345678.abcdef01-..."
+            ... )
+            >>> print(public_key)
+        """
+        # Parse the ANY_LLM_KEY
+        key_components = parse_any_llm_key(any_llm_key)
+
+        # Load the private key
+        private_key = load_private_key(key_components.base64_encoded_private_key)
+
+        # Extract and return the public key
+        public_key = extract_public_key(private_key)
+
+        return public_key
+
+    def get_solved_challenge(self, any_llm_key: str) -> uuid.UUID:
+        """Get a solved authentication challenge from an ANY_LLM_KEY.
+
+        This convenience method handles:
+        1. Parse the ANY_LLM_KEY
+        2. Extract public key from private key
+        3. Create authentication challenge
+        4. Solve and return the challenge
+
+        Args:
+            any_llm_key: The ANY_LLM_KEY string (format: ANY.v1.<kid>.<fingerprint>-<base64_key>)
+
+        Returns:
+            UUID representing the solved challenge
 
         Raises:
             ValueError: If the ANY_LLM_KEY format is invalid.
             ChallengeCreationError: If challenge creation fails.
-            ProviderKeyFetchError: If fetching the provider key fails.
 
         Example:
             >>> client = AnyLLMPlatformClient()
-            >>> api_key = client.get_decrypted_provider_key(
-            ...     any_llm_key="ANY.v1.12345678.abcdef01-...",
-            ...     provider="openai"
+            >>> solved_challenge = client.get_solved_challenge(
+            ...     any_llm_key="ANY.v1.12345678.abcdef01-..."
             ... )
-            >>> print(api_key)
+            >>> print(solved_challenge)
         """
         # Parse the ANY_LLM_KEY
         key_components = parse_any_llm_key(any_llm_key)
@@ -238,31 +291,25 @@ class AnyLLMPlatformClient:
         challenge_data = self.create_challenge(public_key)
         solved_challenge = self.solve_challenge(challenge_data["encrypted_challenge"], private_key)
 
-        # Fetch the encrypted provider key
-        provider_key_data = self.fetch_provider_key(provider, public_key, solved_challenge)
+        return solved_challenge
 
-        # Decrypt and return the provider key
-        decrypted_key = self.decrypt_provider_key_value(provider_key_data["encrypted_key"], private_key)
+    def get_decrypted_provider_key(self, any_llm_key: str, provider: str) -> DecryptedProviderKey:
+        """Get a decrypted provider API key using the complete authentication flow.
 
-        return decrypted_key
-
-    async def aget_decrypted_provider_key(self, any_llm_key: str, provider: str) -> str:
-        """Asynchronously get a decrypted provider API key using the complete authentication flow.
-
-        This is a convenience method that handles the entire flow asynchronously:
+        This is a convenience method that handles the entire flow:
         1. Parse the ANY_LLM_KEY
         2. Extract public key from private key
-        3. Create authentication challenge (async)
+        3. Create authentication challenge
         4. Solve the challenge
-        5. Fetch the encrypted provider key (async)
-        6. Decrypt and return the provider key
+        5. Fetch the encrypted provider key
+        6. Decrypt and return the provider key with metadata
 
         Args:
             any_llm_key: The ANY_LLM_KEY string (format: ANY.v1.<kid>.<fingerprint>-<base64_key>)
             provider: Provider name (e.g., "openai", "anthropic", "google")
 
         Returns:
-            The decrypted provider API key as a string.
+            DecryptedProviderKey object containing the decrypted API key and metadata
 
         Raises:
             ValueError: If the ANY_LLM_KEY format is invalid.
@@ -271,11 +318,111 @@ class AnyLLMPlatformClient:
 
         Example:
             >>> client = AnyLLMPlatformClient()
-            >>> api_key = await client.aget_decrypted_provider_key(
+            >>> result = client.get_decrypted_provider_key(
             ...     any_llm_key="ANY.v1.12345678.abcdef01-...",
             ...     provider="openai"
             ... )
-            >>> print(api_key)
+            >>> print(result.api_key)
+            >>> print(result.provider_key_id)
+        """
+        # Get public key and solved challenge using helper methods
+        public_key = self.get_public_key(any_llm_key)
+        solved_challenge = self.get_solved_challenge(any_llm_key)
+
+        # Load private key for decryption
+        key_components = parse_any_llm_key(any_llm_key)
+        private_key = load_private_key(key_components.base64_encoded_private_key)
+
+        # Fetch the encrypted provider key
+        provider_key_data = self.fetch_provider_key(provider, public_key, solved_challenge)
+
+        # Decrypt the provider key
+        decrypted_key = self.decrypt_provider_key_value(provider_key_data["encrypted_key"], private_key)
+
+        # Return structured data with metadata
+        return DecryptedProviderKey(
+            api_key=decrypted_key,
+            provider_key_id=uuid.UUID(provider_key_data["id"]),
+            project_id=uuid.UUID(provider_key_data["project_id"]),
+            provider=provider_key_data["provider"],
+            created_at=datetime.fromisoformat(provider_key_data["created_at"]),
+            updated_at=(
+                datetime.fromisoformat(provider_key_data["updated_at"]) if provider_key_data.get("updated_at") else None
+            ),
+        )
+
+    async def aget_solved_challenge(self, any_llm_key: str) -> uuid.UUID:
+        """Asynchronously get a solved authentication challenge from an ANY_LLM_KEY.
+
+        This convenience method handles:
+        1. Parse the ANY_LLM_KEY
+        2. Extract public key from private key
+        3. Create authentication challenge (async)
+        4. Solve and return the challenge
+
+        Args:
+            any_llm_key: The ANY_LLM_KEY string (format: ANY.v1.<kid>.<fingerprint>-<base64_key>)
+
+        Returns:
+            UUID representing the solved challenge
+
+        Raises:
+            ValueError: If the ANY_LLM_KEY format is invalid.
+            ChallengeCreationError: If challenge creation fails.
+
+        Example:
+            >>> client = AnyLLMPlatformClient()
+            >>> solved_challenge = await client.aget_solved_challenge(
+            ...     any_llm_key="ANY.v1.12345678.abcdef01-..."
+            ... )
+            >>> print(solved_challenge)
+        """
+        # Parse the ANY_LLM_KEY
+        key_components = parse_any_llm_key(any_llm_key)
+
+        # Load the private key
+        private_key = load_private_key(key_components.base64_encoded_private_key)
+
+        # Extract the public key from the private key
+        public_key = extract_public_key(private_key)
+
+        # Create and solve the challenge
+        challenge_data = await self.acreate_challenge(public_key)
+        solved_challenge = self.solve_challenge(challenge_data["encrypted_challenge"], private_key)
+
+        return solved_challenge
+
+    async def aget_decrypted_provider_key(self, any_llm_key: str, provider: str) -> DecryptedProviderKey:
+        """Asynchronously get a decrypted provider API key using the complete authentication flow.
+
+        This is a convenience method that handles the entire flow asynchronously:
+        1. Parse the ANY_LLM_KEY
+        2. Extract public key from private key
+        3. Create authentication challenge (async)
+        4. Solve the challenge
+        5. Fetch the encrypted provider key (async)
+        6. Decrypt and return the provider key with metadata
+
+        Args:
+            any_llm_key: The ANY_LLM_KEY string (format: ANY.v1.<kid>.<fingerprint>-<base64_key>)
+            provider: Provider name (e.g., "openai", "anthropic", "google")
+
+        Returns:
+            DecryptedProviderKey object containing the decrypted API key and metadata
+
+        Raises:
+            ValueError: If the ANY_LLM_KEY format is invalid.
+            ChallengeCreationError: If challenge creation fails.
+            ProviderKeyFetchError: If fetching the provider key fails.
+
+        Example:
+            >>> client = AnyLLMPlatformClient()
+            >>> result = await client.aget_decrypted_provider_key(
+            ...     any_llm_key="ANY.v1.12345678.abcdef01-...",
+            ...     provider="openai"
+            ... )
+            >>> print(result.api_key)
+            >>> print(result.provider_key_id)
         """
         # Parse the ANY_LLM_KEY
         key_components = parse_any_llm_key(any_llm_key)
@@ -293,7 +440,17 @@ class AnyLLMPlatformClient:
         # Fetch the encrypted provider key
         provider_key_data = await self.afetch_provider_key(provider, public_key, solved_challenge)
 
-        # Decrypt and return the provider key
+        # Decrypt the provider key
         decrypted_key = self.decrypt_provider_key_value(provider_key_data["encrypted_key"], private_key)
 
-        return decrypted_key
+        # Return structured data with metadata
+        return DecryptedProviderKey(
+            api_key=decrypted_key,
+            provider_key_id=uuid.UUID(provider_key_data["id"]),
+            project_id=uuid.UUID(provider_key_data["project_id"]),
+            provider=provider_key_data["provider"],
+            created_at=datetime.fromisoformat(provider_key_data["created_at"]),
+            updated_at=(
+                datetime.fromisoformat(provider_key_data["updated_at"]) if provider_key_data.get("updated_at") else None
+            ),
+        )

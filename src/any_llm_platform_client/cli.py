@@ -24,14 +24,14 @@ def _get_any_llm_key(cli_key: str | None) -> str:
 
 def _run_decryption(provider: str, any_llm_key: str, client: AnyLLMPlatformClient) -> str:
     # Use the convenience method which handles all the steps internally
-    decrypted_api_key = client.get_decrypted_provider_key(any_llm_key, provider)
+    result = client.get_decrypted_provider_key(any_llm_key, provider)
 
     click.echo("")
     click.echo("🎉 SUCCESS!")
     click.echo("🔑 Decrypted API Key:")
-    click.echo(f"   {decrypted_api_key}")
+    click.echo(f"   {result.api_key}")
 
-    return decrypted_api_key
+    return result.api_key
 
 
 @click.command()
