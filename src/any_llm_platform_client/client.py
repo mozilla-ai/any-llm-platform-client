@@ -5,7 +5,7 @@ import uuid
 
 import httpx
 
-from .crypto import decrypt_data
+from .crypto import decrypt_data, extract_public_key, load_private_key, parse_any_llm_key
 from .exceptions import ChallengeCreationError, ProviderKeyFetchError
 
 logger = logging.getLogger(__name__)
@@ -192,4 +192,108 @@ class AnyLLMPlatformClient:
 
         decrypted_key = decrypt_data(encrypted_key, private_key)
         logger.info("✅ Decrypted successfully!")
+        return decrypted_key
+
+    def get_decrypted_provider_key(self, any_llm_key: str, provider: str) -> str:
+        """Get a decrypted provider API key using the complete authentication flow.
+
+        This is a convenience method that handles the entire flow:
+        1. Parse the ANY_LLM_KEY
+        2. Extract public key from private key
+        3. Create authentication challenge
+        4. Solve the challenge
+        5. Fetch the encrypted provider key
+        6. Decrypt and return the provider key
+
+        Args:
+            any_llm_key: The ANY_LLM_KEY string (format: ANY.v1.<kid>.<fingerprint>-<base64_key>)
+            provider: Provider name (e.g., "openai", "anthropic", "google")
+
+        Returns:
+            The decrypted provider API key as a string.
+
+        Raises:
+            ValueError: If the ANY_LLM_KEY format is invalid.
+            ChallengeCreationError: If challenge creation fails.
+            ProviderKeyFetchError: If fetching the provider key fails.
+
+        Example:
+            >>> client = AnyLLMPlatformClient()
+            >>> api_key = client.get_decrypted_provider_key(
+            ...     any_llm_key="ANY.v1.12345678.abcdef01-...",
+            ...     provider="openai"
+            ... )
+            >>> print(api_key)
+        """
+        # Parse the ANY_LLM_KEY
+        key_components = parse_any_llm_key(any_llm_key)
+
+        # Load the private key
+        private_key = load_private_key(key_components.base64_encoded_private_key)
+
+        # Extract the public key from the private key
+        public_key = extract_public_key(private_key)
+
+        # Create and solve the challenge
+        challenge_data = self.create_challenge(public_key)
+        solved_challenge = self.solve_challenge(challenge_data["encrypted_challenge"], private_key)
+
+        # Fetch the encrypted provider key
+        provider_key_data = self.fetch_provider_key(provider, public_key, solved_challenge)
+
+        # Decrypt and return the provider key
+        decrypted_key = self.decrypt_provider_key_value(provider_key_data["encrypted_key"], private_key)
+
+        return decrypted_key
+
+    async def aget_decrypted_provider_key(self, any_llm_key: str, provider: str) -> str:
+        """Asynchronously get a decrypted provider API key using the complete authentication flow.
+
+        This is a convenience method that handles the entire flow asynchronously:
+        1. Parse the ANY_LLM_KEY
+        2. Extract public key from private key
+        3. Create authentication challenge (async)
+        4. Solve the challenge
+        5. Fetch the encrypted provider key (async)
+        6. Decrypt and return the provider key
+
+        Args:
+            any_llm_key: The ANY_LLM_KEY string (format: ANY.v1.<kid>.<fingerprint>-<base64_key>)
+            provider: Provider name (e.g., "openai", "anthropic", "google")
+
+        Returns:
+            The decrypted provider API key as a string.
+
+        Raises:
+            ValueError: If the ANY_LLM_KEY format is invalid.
+            ChallengeCreationError: If challenge creation fails.
+            ProviderKeyFetchError: If fetching the provider key fails.
+
+        Example:
+            >>> client = AnyLLMPlatformClient()
+            >>> api_key = await client.aget_decrypted_provider_key(
+            ...     any_llm_key="ANY.v1.12345678.abcdef01-...",
+            ...     provider="openai"
+            ... )
+            >>> print(api_key)
+        """
+        # Parse the ANY_LLM_KEY
+        key_components = parse_any_llm_key(any_llm_key)
+
+        # Load the private key
+        private_key = load_private_key(key_components.base64_encoded_private_key)
+
+        # Extract the public key from the private key
+        public_key = extract_public_key(private_key)
+
+        # Create and solve the challenge
+        challenge_data = await self.acreate_challenge(public_key)
+        solved_challenge = self.solve_challenge(challenge_data["encrypted_challenge"], private_key)
+
+        # Fetch the encrypted provider key
+        provider_key_data = await self.afetch_provider_key(provider, public_key, solved_challenge)
+
+        # Decrypt and return the provider key
+        decrypted_key = self.decrypt_provider_key_value(provider_key_data["encrypted_key"], private_key)
+
         return decrypted_key

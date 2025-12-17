@@ -7,7 +7,6 @@ import sys
 import click
 
 from .client import AnyLLMPlatformClient
-from .crypto import extract_public_key, load_private_key, parse_any_llm_key
 from .exceptions import ChallengeCreationError, ProviderKeyFetchError
 
 
@@ -24,31 +23,11 @@ def _get_any_llm_key(cli_key: str | None) -> str:
 
 
 def _run_decryption(provider: str, any_llm_key: str, client: AnyLLMPlatformClient) -> str:
-    click.echo("🔍 Parsing ANY_LLM_KEY...")
-    kid, fingerprint, private_key_base64 = parse_any_llm_key(any_llm_key)
-    click.echo(f"✅ Key ID: {kid}")
-    click.echo(f"✅ Fingerprint: {fingerprint}")
+    # Use the convenience method which handles all the steps internally
+    decrypted_api_key = client.get_decrypted_provider_key(any_llm_key, provider)
 
-    click.echo("🔑 Loading X25519 private key...")
-    private_key = load_private_key(private_key_base64)
-    click.echo("✅ Private key loaded")
-
-    click.echo("🔑 Extracting public key...")
-    public_key = extract_public_key(private_key)
-    click.echo("✅ Public key extracted")
-
-    challenge_data = client.create_challenge(public_key)
-    solved_challenge = client.solve_challenge(challenge_data["encrypted_challenge"], private_key)
-    provider_key_data = client.fetch_provider_key(provider, public_key, solved_challenge)
-    print(provider_key_data["encrypted_key"])
-    print(private_key)
-    decrypted_api_key = client.decrypt_provider_key_value(provider_key_data["encrypted_key"], private_key)
-
-    click.echo("🎉 SUCCESS!")
-    click.echo(f"Provider: {provider_key_data['provider']}")
-    click.echo(f"Project ID: {provider_key_data['project_id']}")
-    click.echo(f"Created: {provider_key_data['created_at']}")
     click.echo("")
+    click.echo("🎉 SUCCESS!")
     click.echo("🔑 Decrypted API Key:")
     click.echo(f"   {decrypted_api_key}")
 

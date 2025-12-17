@@ -75,28 +75,45 @@ any-llm openai
 
 ### As a Python Library
 
+#### Simple Usage (Recommended)
+
+```python
+from any_llm_platform_client.client import AnyLLMPlatformClient
+
+# Create client
+client = AnyLLMPlatformClient()
+
+# Get decrypted provider key in one call
+any_llm_key = "ANY.v1.12345678.abcdef01-YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY3OA=="
+api_key = client.get_decrypted_provider_key(any_llm_key, provider="openai")
+
+print(f"API Key: {api_key}")
+```
+
+#### Advanced Usage (Manual Steps)
+
+For more control over the authentication flow:
+
 ```python
 from any_llm_platform_client import (
     parse_any_llm_key,
     load_private_key,
     extract_public_key,
-    decrypt_data,
 )
 from any_llm_platform_client.client import AnyLLMPlatformClient
 
 # Parse the key
 any_llm_key = "ANY.v1...."
-key_id, fingerprint, private_key_base64 = parse_any_llm_key(any_llm_key)
+key_components = parse_any_llm_key(any_llm_key)
 
 # Load private key
-private_key = load_private_key(private_key_base64)
+private_key = load_private_key(key_components.base64_encoded_private_key)
 
 # Extract public key
 public_key = extract_public_key(private_key)
 
 # Authenticate with challenge-response using the client
 client = AnyLLMPlatformClient()
-# challenge/solve (logging controls visibility)
 challenge_data = client.create_challenge(public_key)
 solved_challenge = client.solve_challenge(challenge_data["encrypted_challenge"], private_key)
 
@@ -105,6 +122,21 @@ provider_key_data = client.fetch_provider_key("openai", public_key, solved_chall
 api_key = client.decrypt_provider_key_value(provider_key_data["encrypted_key"], private_key)
 
 print(f"API Key: {api_key}")
+```
+
+#### Async Usage
+
+```python
+import asyncio
+from any_llm_platform_client.client import AnyLLMPlatformClient
+
+async def main():
+    client = AnyLLMPlatformClient()
+    any_llm_key = "ANY.v1...."
+    api_key = await client.aget_decrypted_provider_key(any_llm_key, provider="openai")
+    print(f"API Key: {api_key}")
+
+asyncio.run(main())
 ```
 
 ## How It Works
