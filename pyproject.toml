@@ -1,12 +1,66 @@
+[build-system]
+requires = ["setuptools>=65", "setuptools_scm[toml]>=8.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "decrypter"
-version = "0.1.0"
-description = "Add your description here"
+name = "any-llm-platform-client"
 readme = "README.md"
+license = {text = "Apache-2.0"}
 requires-python = ">=3.11"
+dynamic = ["version"]
+description = "Decrypt provider API keys using X25519 sealed box encryption and challenge-response authentication"
 dependencies = [
-    "bcrypt>=5.0.0",
-    "cryptography>=46.0.3",
     "pynacl>=1.6.0",
-    "requests>=2.32.5",
+    "httpx>=0.28.0",
+    "click>=8.1.0",
+]
+
+[dependency-groups]
+dev = [
+    {include-group = "lint"},
+    {include-group = "test"}
+]
+
+docs = [
+    "mkdocs",
+    "mkdocs-material",
+]
+
+lint = [
+    "pre-commit>=4.3.0",
+    "ruff>=0.14.3",
+]
+
+test = [
+    "pytest>=8,<9",
+    "pytest-cov>=4.0.0",
+    "pytest-timeout",
+    "pytest-asyncio>=0.24.0",
+]
+
+[project.scripts]
+any-llm = "any_llm_platform_client.cli:main"
+
+[tool.setuptools.package-data]
+"*" = ["py.typed"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+exclude = ["tests", "tests.*"]
+namespaces = false
+
+[tool.setuptools_scm]
+version_file = "src/any_llm_platform_client/_version.py"
+
+[tool.ruff]
+extend = "ruff.toml"
+
+[tool.pytest.ini_options]
+timeout = 120
+filterwarnings = [
+    "error",
+]
+asyncio_mode = "auto"
+markers = [
+    "asyncio: mark test as an async test",
 ]
