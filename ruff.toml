@@ -29,7 +29,7 @@ exclude = [
     "dist",
     "node_modules",
     "venv",
-    "src/any_llm_client/_version.py",
+    "src/any_llm_platform_client/_version.py",
 ]
 
 [lint]
