@@ -78,6 +78,8 @@ class AnyLLMPlatformClient:
                 Defaults to "http://localhost:8000/api/v1" if not provided.
         """
         self.any_llm_platform_url = any_llm_platform_url or "http://localhost:8000/api/v1"
+        self.access_token: str | None = None
+        self.token_expires_at: datetime | None = None
 
     def create_challenge(self, public_key: str) -> dict:
         """Create an authentication challenge using the provided public key.
