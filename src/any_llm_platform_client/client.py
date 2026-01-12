@@ -495,13 +495,11 @@ class AnyLLMPlatformClient:
     def get_decrypted_provider_key(self, any_llm_key: str, provider: str) -> DecryptedProviderKey:
         """Get a decrypted provider API key using the complete authentication flow.
 
-        This is a convenience method that handles the entire flow:
+        This is a convenience method that handles the entire flow with token-based auth:
         1. Parse the ANY_LLM_KEY
-        2. Extract public key from private key
-        3. Create authentication challenge
-        4. Solve the challenge
-        5. Fetch the encrypted provider key
-        6. Decrypt and return the provider key with metadata
+        2. Ensure valid access token (request if needed)
+        3. Fetch the encrypted provider key using Bearer token
+        4. Decrypt and return the provider key with metadata
 
         Args:
             any_llm_key: The ANY_LLM_KEY string (format: ANY.v1.<kid>.<fingerprint>-<base64_key>)
@@ -524,16 +522,15 @@ class AnyLLMPlatformClient:
             >>> print(result.api_key)
             >>> print(result.provider_key_id)
         """
-        # Get public key and solved challenge using helper methods
-        public_key = self.get_public_key(any_llm_key)
-        solved_challenge = self.get_solved_challenge(any_llm_key)
+        # Ensure we have a valid access token
+        access_token = self._ensure_valid_token(any_llm_key)
 
         # Load private key for decryption
         key_components = parse_any_llm_key(any_llm_key)
         private_key = load_private_key(key_components.base64_encoded_private_key)
 
-        # Fetch the encrypted provider key
-        provider_key_data = self.fetch_provider_key(provider, public_key, solved_challenge)
+        # Fetch the encrypted provider key using Bearer token
+        provider_key_data = self.fetch_provider_key(provider, access_token=access_token)
 
         # Decrypt the provider key
         decrypted_key = self.decrypt_provider_key_value(provider_key_data["encrypted_key"], private_key)
@@ -594,13 +591,11 @@ class AnyLLMPlatformClient:
     async def aget_decrypted_provider_key(self, any_llm_key: str, provider: str) -> DecryptedProviderKey:
         """Asynchronously get a decrypted provider API key using the complete authentication flow.
 
-        This is a convenience method that handles the entire flow asynchronously:
+        This is a convenience method that handles the entire flow asynchronously with token-based auth:
         1. Parse the ANY_LLM_KEY
-        2. Extract public key from private key
-        3. Create authentication challenge (async)
-        4. Solve the challenge
-        5. Fetch the encrypted provider key (async)
-        6. Decrypt and return the provider key with metadata
+        2. Ensure valid access token (request if needed)
+        3. Fetch the encrypted provider key using Bearer token (async)
+        4. Decrypt and return the provider key with metadata
 
         Args:
             any_llm_key: The ANY_LLM_KEY string (format: ANY.v1.<kid>.<fingerprint>-<base64_key>)
@@ -623,21 +618,15 @@ class AnyLLMPlatformClient:
             >>> print(result.api_key)
             >>> print(result.provider_key_id)
         """
-        # Parse the ANY_LLM_KEY
-        key_components = parse_any_llm_key(any_llm_key)
+        # Ensure we have a valid access token
+        access_token = await self._aensure_valid_token(any_llm_key)
 
-        # Load the private key
+        # Parse the ANY_LLM_KEY and load private key for decryption
+        key_components = parse_any_llm_key(any_llm_key)
         private_key = load_private_key(key_components.base64_encoded_private_key)
 
-        # Extract the public key from the private key
-        public_key = extract_public_key(private_key)
-
-        # Create and solve the challenge
-        challenge_data = await self.acreate_challenge(public_key)
-        solved_challenge = self.solve_challenge(challenge_data["encrypted_challenge"], private_key)
-
-        # Fetch the encrypted provider key
-        provider_key_data = await self.afetch_provider_key(provider, public_key, solved_challenge)
+        # Fetch the encrypted provider key using Bearer token
+        provider_key_data = await self.afetch_provider_key(provider, access_token=access_token)
 
         # Decrypt the provider key
         decrypted_key = self.decrypt_provider_key_value(provider_key_data["encrypted_key"], private_key)
