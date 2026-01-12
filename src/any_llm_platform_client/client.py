@@ -1,9 +1,10 @@
 """API client for communicating with the ANY LLM backend."""
 
+import contextlib
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import httpx
 
@@ -144,6 +145,78 @@ class AnyLLMPlatformClient:
 
         logger.info("✅ Challenge solved: %s", solved_challenge)
         return solved_challenge
+
+    def request_access_token(self, solved_challenge: uuid.UUID) -> str:
+        """Request an access token by submitting the solved challenge.
+
+        Args:
+            solved_challenge: Solved challenge UUID.
+
+        Returns:
+            JWT access token string.
+
+        Raises:
+            ChallengeCreationError: If token request fails.
+        """
+        logger.info("🎫 Requesting access token...")
+
+        with httpx.Client() as client:
+            response = client.post(
+                f"{self.any_llm_platform_url}/auth/token",
+                json={"solved_challenge": str(solved_challenge)},
+            )
+
+        if response.status_code != 200:
+            logger.error("❌ Error requesting access token: %s", response.status_code)
+            with contextlib.suppress(ValueError):
+                logger.debug(response.json())
+            raise ChallengeCreationError(f"Failed to request access token (status: {response.status_code})")
+
+        data = response.json()
+        access_token = data["access_token"]
+
+        # Store token and set expiration (24 hours minus 1 hour safety margin)
+        self.access_token = access_token
+        self.token_expires_at = datetime.now() + timedelta(hours=23)
+
+        logger.info("✅ Access token obtained")
+        return access_token
+
+    async def arequest_access_token(self, solved_challenge: uuid.UUID) -> str:
+        """Asynchronously request an access token by submitting the solved challenge.
+
+        Args:
+            solved_challenge: Solved challenge UUID.
+
+        Returns:
+            JWT access token string.
+
+        Raises:
+            ChallengeCreationError: If token request fails.
+        """
+        logger.info("🎫 Requesting access token...")
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{self.any_llm_platform_url}/auth/token",
+                json={"solved_challenge": str(solved_challenge)},
+            )
+
+        if response.status_code != 200:
+            logger.error("❌ Error requesting access token: %s", response.status_code)
+            with contextlib.suppress(ValueError):
+                logger.debug(response.json())
+            raise ChallengeCreationError(f"Failed to request access token (status: {response.status_code})")
+
+        data = response.json()
+        access_token = data["access_token"]
+
+        # Store token and set expiration (24 hours minus 1 hour safety margin)
+        self.access_token = access_token
+        self.token_expires_at = datetime.now() + timedelta(hours=23)
+
+        logger.info("✅ Access token obtained")
+        return access_token
 
     def fetch_provider_key(self, provider: str, public_key: str, solved_challenge: uuid.UUID) -> dict:
         """Fetch the encrypted provider API key from the server.
