@@ -218,6 +218,134 @@ class AnyLLMPlatformClient:
         logger.info("✅ Access token obtained")
         return access_token
 
+    def refresh_access_token(self, any_llm_key: str) -> str:
+        """Refresh the access token by requesting a new one.
+
+        This method forces a token refresh regardless of expiration status.
+        Useful for manual token management or when you need to invalidate
+        the current token and get a fresh one.
+
+        Args:
+            any_llm_key: The ANY_LLM_KEY string for authentication.
+
+        Returns:
+            New JWT access token string.
+
+        Raises:
+            ValueError: If the ANY_LLM_KEY format is invalid.
+            ChallengeCreationError: If authentication fails.
+
+        Example:
+            >>> client = AnyLLMPlatformClient()
+            >>> # Force refresh the token
+            >>> new_token = client.refresh_access_token(any_llm_key)
+            >>> # Use the new token
+            >>> client.fetch_provider_key("openai", new_token)
+        """
+        logger.info("🔄 Refreshing access token...")
+
+        # Parse the ANY_LLM_KEY
+        key_components = parse_any_llm_key(any_llm_key)
+
+        # Load the private key
+        private_key = load_private_key(key_components.base64_encoded_private_key)
+
+        # Extract the public key from the private key
+        public_key = extract_public_key(private_key)
+
+        # Create and solve the challenge
+        challenge_data = self.create_challenge(public_key)
+        solved_challenge = self.solve_challenge(challenge_data["encrypted_challenge"], private_key)
+
+        # Request access token
+        return self.request_access_token(solved_challenge)
+
+    async def arefresh_access_token(self, any_llm_key: str) -> str:
+        """Asynchronously refresh the access token by requesting a new one.
+
+        This method forces a token refresh regardless of expiration status.
+        Useful for manual token management or when you need to invalidate
+        the current token and get a fresh one.
+
+        Args:
+            any_llm_key: The ANY_LLM_KEY string for authentication.
+
+        Returns:
+            New JWT access token string.
+
+        Raises:
+            ValueError: If the ANY_LLM_KEY format is invalid.
+            ChallengeCreationError: If authentication fails.
+
+        Example:
+            >>> client = AnyLLMPlatformClient()
+            >>> # Force refresh the token
+            >>> new_token = await client.arefresh_access_token(any_llm_key)
+            >>> # Use the new token
+            >>> await client.afetch_provider_key("openai", new_token)
+        """
+        logger.info("🔄 Refreshing access token...")
+
+        # Parse the ANY_LLM_KEY
+        key_components = parse_any_llm_key(any_llm_key)
+
+        # Load the private key
+        private_key = load_private_key(key_components.base64_encoded_private_key)
+
+        # Extract the public key from the private key
+        public_key = extract_public_key(private_key)
+
+        # Create and solve the challenge
+        challenge_data = await self.acreate_challenge(public_key)
+        solved_challenge = self.solve_challenge(challenge_data["encrypted_challenge"], private_key)
+
+        # Request access token
+        return await self.arequest_access_token(solved_challenge)
+
+    def _ensure_valid_token(self, any_llm_key: str) -> str:
+        """Ensure a valid access token exists, refreshing if necessary.
+
+        Args:
+            any_llm_key: The ANY_LLM_KEY string for authentication.
+
+        Returns:
+            Valid access token string.
+
+        Raises:
+            ValueError: If the ANY_LLM_KEY format is invalid.
+            ChallengeCreationError: If authentication fails.
+        """
+        now = datetime.now()
+
+        # Request new token if missing or expired
+        if not self.access_token or not self.token_expires_at or now >= self.token_expires_at:
+            logger.debug("Token missing or expired, requesting new token...")
+            self.refresh_access_token(any_llm_key)
+
+        return self.access_token  # type: ignore
+
+    async def _aensure_valid_token(self, any_llm_key: str) -> str:
+        """Asynchronously ensure a valid access token exists, refreshing if necessary.
+
+        Args:
+            any_llm_key: The ANY_LLM_KEY string for authentication.
+
+        Returns:
+            Valid access token string.
+
+        Raises:
+            ValueError: If the ANY_LLM_KEY format is invalid.
+            ChallengeCreationError: If authentication fails.
+        """
+        now = datetime.now()
+
+        # Request new token if missing or expired
+        if not self.access_token or not self.token_expires_at or now >= self.token_expires_at:
+            logger.debug("Token missing or expired, requesting new token...")
+            await self.arefresh_access_token(any_llm_key)
+
+        return self.access_token  # type: ignore
+
     def fetch_provider_key(self, provider: str, public_key: str, solved_challenge: uuid.UUID) -> dict:
         """Fetch the encrypted provider API key from the server.
 
