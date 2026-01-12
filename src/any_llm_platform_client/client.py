@@ -346,26 +346,24 @@ class AnyLLMPlatformClient:
 
         return self.access_token  # type: ignore
 
-    def fetch_provider_key(self, provider: str, public_key: str, solved_challenge: uuid.UUID) -> dict:
-        """Fetch the encrypted provider API key from the server.
+    def fetch_provider_key(self, provider: str, access_token: str) -> dict:
+        """Fetch the encrypted provider API key from the server using Bearer token authentication.
 
         Args:
             provider: Provider name (e.g., "openai", "anthropic").
-            public_key: Base64-encoded X25519 public key.
-            solved_challenge: Solved challenge UUID for authentication.
+            access_token: JWT access token for authentication.
 
         Returns:
             Dictionary containing the encrypted provider key and metadata.
         """
         logger.info("🔑 Fetching provider key for %s...", provider)
 
+        headers = {"Authorization": f"Bearer {access_token}"}
+
         with httpx.Client() as client:
             response = client.get(
                 f"{self.any_llm_platform_url}/provider-keys/{provider}",
-                headers={
-                    "encryption-key": public_key,
-                    "AnyLLM-Challenge-Response": str(solved_challenge),
-                },
+                headers=headers,
             )
 
         if response.status_code != 200:
@@ -375,26 +373,24 @@ class AnyLLMPlatformClient:
         logger.info("✅ Provider key fetched")
         return data
 
-    async def afetch_provider_key(self, provider: str, public_key: str, solved_challenge: uuid.UUID) -> dict:
-        """Asynchronously fetch the encrypted provider API key from the server.
+    async def afetch_provider_key(self, provider: str, access_token: str) -> dict:
+        """Asynchronously fetch the encrypted provider API key from the server using Bearer token authentication.
 
         Args:
             provider: Provider name (e.g., "openai", "anthropic").
-            public_key: Base64-encoded X25519 public key.
-            solved_challenge: Solved challenge UUID for authentication.
+            access_token: JWT access token for authentication.
 
         Returns:
             Dictionary containing the encrypted provider key and metadata.
         """
         logger.info("🔑 Fetching provider key for %s...", provider)
 
+        headers = {"Authorization": f"Bearer {access_token}"}
+
         async with httpx.AsyncClient() as client:
             response = await client.get(
                 f"{self.any_llm_platform_url}/provider-keys/{provider}",
-                headers={
-                    "encryption-key": public_key,
-                    "AnyLLM-Challenge-Response": str(solved_challenge),
-                },
+                headers=headers,
             )
 
         if response.status_code != 200:
