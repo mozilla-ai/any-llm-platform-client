@@ -1,9 +1,10 @@
 """API client for communicating with the ANY LLM backend."""
 
+import contextlib
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import httpx
 
@@ -78,6 +79,8 @@ class AnyLLMPlatformClient:
                 Defaults to "http://localhost:8000/api/v1" if not provided.
         """
         self.any_llm_platform_url = any_llm_platform_url or "http://localhost:8000/api/v1"
+        self.access_token: str | None = None
+        self.token_expires_at: datetime | None = None
 
     def create_challenge(self, public_key: str) -> dict:
         """Create an authentication challenge using the provided public key.
@@ -143,26 +146,224 @@ class AnyLLMPlatformClient:
         logger.info("✅ Challenge solved: %s", solved_challenge)
         return solved_challenge
 
-    def fetch_provider_key(self, provider: str, public_key: str, solved_challenge: uuid.UUID) -> dict:
-        """Fetch the encrypted provider API key from the server.
+    def request_access_token(self, solved_challenge: uuid.UUID) -> str:
+        """Request an access token by submitting the solved challenge.
+
+        Args:
+            solved_challenge: Solved challenge UUID.
+
+        Returns:
+            JWT access token string.
+
+        Raises:
+            ChallengeCreationError: If token request fails.
+        """
+        logger.info("🎫 Requesting access token...")
+
+        with httpx.Client() as client:
+            response = client.post(
+                f"{self.any_llm_platform_url}/auth/token",
+                json={"solved_challenge": str(solved_challenge)},
+            )
+
+        if response.status_code != 200:
+            logger.error("❌ Error requesting access token: %s", response.status_code)
+            with contextlib.suppress(ValueError):
+                logger.debug(response.json())
+            raise ChallengeCreationError(f"Failed to request access token (status: {response.status_code})")
+
+        data = response.json()
+        access_token = data["access_token"]
+
+        # Store token and set expiration (24 hours minus 1 hour safety margin)
+        self.access_token = access_token
+        self.token_expires_at = datetime.now() + timedelta(hours=23)
+
+        logger.info("✅ Access token obtained")
+        return access_token
+
+    async def arequest_access_token(self, solved_challenge: uuid.UUID) -> str:
+        """Asynchronously request an access token by submitting the solved challenge.
+
+        Args:
+            solved_challenge: Solved challenge UUID.
+
+        Returns:
+            JWT access token string.
+
+        Raises:
+            ChallengeCreationError: If token request fails.
+        """
+        logger.info("🎫 Requesting access token...")
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{self.any_llm_platform_url}/auth/token",
+                json={"solved_challenge": str(solved_challenge)},
+            )
+
+        if response.status_code != 200:
+            logger.error("❌ Error requesting access token: %s", response.status_code)
+            with contextlib.suppress(ValueError):
+                logger.debug(response.json())
+            raise ChallengeCreationError(f"Failed to request access token (status: {response.status_code})")
+
+        data = response.json()
+        access_token = data["access_token"]
+
+        # Store token and set expiration (24 hours minus 1 hour safety margin)
+        self.access_token = access_token
+        self.token_expires_at = datetime.now() + timedelta(hours=23)
+
+        logger.info("✅ Access token obtained")
+        return access_token
+
+    def refresh_access_token(self, any_llm_key: str) -> str:
+        """Refresh the access token by requesting a new one.
+
+        This method forces a token refresh regardless of expiration status.
+        Useful for manual token management or when you need to invalidate
+        the current token and get a fresh one.
+
+        Args:
+            any_llm_key: The ANY_LLM_KEY string for authentication.
+
+        Returns:
+            New JWT access token string.
+
+        Raises:
+            ValueError: If the ANY_LLM_KEY format is invalid.
+            ChallengeCreationError: If authentication fails.
+
+        Example:
+            >>> client = AnyLLMPlatformClient()
+            >>> # Force refresh the token
+            >>> new_token = client.refresh_access_token(any_llm_key)
+            >>> # Use the new token
+            >>> client.fetch_provider_key("openai", new_token)
+        """
+        logger.info("🔄 Refreshing access token...")
+
+        # Parse the ANY_LLM_KEY
+        key_components = parse_any_llm_key(any_llm_key)
+
+        # Load the private key
+        private_key = load_private_key(key_components.base64_encoded_private_key)
+
+        # Extract the public key from the private key
+        public_key = extract_public_key(private_key)
+
+        # Create and solve the challenge
+        challenge_data = self.create_challenge(public_key)
+        solved_challenge = self.solve_challenge(challenge_data["encrypted_challenge"], private_key)
+
+        # Request access token
+        return self.request_access_token(solved_challenge)
+
+    async def arefresh_access_token(self, any_llm_key: str) -> str:
+        """Asynchronously refresh the access token by requesting a new one.
+
+        This method forces a token refresh regardless of expiration status.
+        Useful for manual token management or when you need to invalidate
+        the current token and get a fresh one.
+
+        Args:
+            any_llm_key: The ANY_LLM_KEY string for authentication.
+
+        Returns:
+            New JWT access token string.
+
+        Raises:
+            ValueError: If the ANY_LLM_KEY format is invalid.
+            ChallengeCreationError: If authentication fails.
+
+        Example:
+            >>> client = AnyLLMPlatformClient()
+            >>> # Force refresh the token
+            >>> new_token = await client.arefresh_access_token(any_llm_key)
+            >>> # Use the new token
+            >>> await client.afetch_provider_key("openai", new_token)
+        """
+        logger.info("🔄 Refreshing access token...")
+
+        # Parse the ANY_LLM_KEY
+        key_components = parse_any_llm_key(any_llm_key)
+
+        # Load the private key
+        private_key = load_private_key(key_components.base64_encoded_private_key)
+
+        # Extract the public key from the private key
+        public_key = extract_public_key(private_key)
+
+        # Create and solve the challenge
+        challenge_data = await self.acreate_challenge(public_key)
+        solved_challenge = self.solve_challenge(challenge_data["encrypted_challenge"], private_key)
+
+        # Request access token
+        return await self.arequest_access_token(solved_challenge)
+
+    def _ensure_valid_token(self, any_llm_key: str) -> str:
+        """Ensure a valid access token exists, refreshing if necessary.
+
+        Args:
+            any_llm_key: The ANY_LLM_KEY string for authentication.
+
+        Returns:
+            Valid access token string.
+
+        Raises:
+            ValueError: If the ANY_LLM_KEY format is invalid.
+            ChallengeCreationError: If authentication fails.
+        """
+        now = datetime.now()
+
+        # Request new token if missing or expired
+        if not self.access_token or not self.token_expires_at or now >= self.token_expires_at:
+            logger.debug("Token missing or expired, requesting new token...")
+            self.refresh_access_token(any_llm_key)
+
+        return self.access_token  # type: ignore
+
+    async def _aensure_valid_token(self, any_llm_key: str) -> str:
+        """Asynchronously ensure a valid access token exists, refreshing if necessary.
+
+        Args:
+            any_llm_key: The ANY_LLM_KEY string for authentication.
+
+        Returns:
+            Valid access token string.
+
+        Raises:
+            ValueError: If the ANY_LLM_KEY format is invalid.
+            ChallengeCreationError: If authentication fails.
+        """
+        now = datetime.now()
+
+        # Request new token if missing or expired
+        if not self.access_token or not self.token_expires_at or now >= self.token_expires_at:
+            logger.debug("Token missing or expired, requesting new token...")
+            await self.arefresh_access_token(any_llm_key)
+
+        return self.access_token  # type: ignore
+
+    def fetch_provider_key(self, provider: str, access_token: str) -> dict:
+        """Fetch the encrypted provider API key from the server using Bearer token authentication.
 
         Args:
             provider: Provider name (e.g., "openai", "anthropic").
-            public_key: Base64-encoded X25519 public key.
-            solved_challenge: Solved challenge UUID for authentication.
+            access_token: JWT access token for authentication.
 
         Returns:
             Dictionary containing the encrypted provider key and metadata.
         """
         logger.info("🔑 Fetching provider key for %s...", provider)
 
+        headers = {"Authorization": f"Bearer {access_token}"}
+
         with httpx.Client() as client:
             response = client.get(
                 f"{self.any_llm_platform_url}/provider-keys/{provider}",
-                headers={
-                    "encryption-key": public_key,
-                    "AnyLLM-Challenge-Response": str(solved_challenge),
-                },
+                headers=headers,
             )
 
         if response.status_code != 200:
@@ -172,26 +373,24 @@ class AnyLLMPlatformClient:
         logger.info("✅ Provider key fetched")
         return data
 
-    async def afetch_provider_key(self, provider: str, public_key: str, solved_challenge: uuid.UUID) -> dict:
-        """Asynchronously fetch the encrypted provider API key from the server.
+    async def afetch_provider_key(self, provider: str, access_token: str) -> dict:
+        """Asynchronously fetch the encrypted provider API key from the server using Bearer token authentication.
 
         Args:
             provider: Provider name (e.g., "openai", "anthropic").
-            public_key: Base64-encoded X25519 public key.
-            solved_challenge: Solved challenge UUID for authentication.
+            access_token: JWT access token for authentication.
 
         Returns:
             Dictionary containing the encrypted provider key and metadata.
         """
         logger.info("🔑 Fetching provider key for %s...", provider)
 
+        headers = {"Authorization": f"Bearer {access_token}"}
+
         async with httpx.AsyncClient() as client:
             response = await client.get(
                 f"{self.any_llm_platform_url}/provider-keys/{provider}",
-                headers={
-                    "encryption-key": public_key,
-                    "AnyLLM-Challenge-Response": str(solved_challenge),
-                },
+                headers=headers,
             )
 
         if response.status_code != 200:
@@ -296,13 +495,11 @@ class AnyLLMPlatformClient:
     def get_decrypted_provider_key(self, any_llm_key: str, provider: str) -> DecryptedProviderKey:
         """Get a decrypted provider API key using the complete authentication flow.
 
-        This is a convenience method that handles the entire flow:
+        This is a convenience method that handles the entire flow with token-based auth:
         1. Parse the ANY_LLM_KEY
-        2. Extract public key from private key
-        3. Create authentication challenge
-        4. Solve the challenge
-        5. Fetch the encrypted provider key
-        6. Decrypt and return the provider key with metadata
+        2. Ensure valid access token (request if needed)
+        3. Fetch the encrypted provider key using Bearer token
+        4. Decrypt and return the provider key with metadata
 
         Args:
             any_llm_key: The ANY_LLM_KEY string (format: ANY.v1.<kid>.<fingerprint>-<base64_key>)
@@ -325,16 +522,15 @@ class AnyLLMPlatformClient:
             >>> print(result.api_key)
             >>> print(result.provider_key_id)
         """
-        # Get public key and solved challenge using helper methods
-        public_key = self.get_public_key(any_llm_key)
-        solved_challenge = self.get_solved_challenge(any_llm_key)
+        # Ensure we have a valid access token
+        access_token = self._ensure_valid_token(any_llm_key)
 
         # Load private key for decryption
         key_components = parse_any_llm_key(any_llm_key)
         private_key = load_private_key(key_components.base64_encoded_private_key)
 
-        # Fetch the encrypted provider key
-        provider_key_data = self.fetch_provider_key(provider, public_key, solved_challenge)
+        # Fetch the encrypted provider key using Bearer token
+        provider_key_data = self.fetch_provider_key(provider, access_token=access_token)
 
         # Decrypt the provider key
         decrypted_key = self.decrypt_provider_key_value(provider_key_data["encrypted_key"], private_key)
@@ -395,13 +591,11 @@ class AnyLLMPlatformClient:
     async def aget_decrypted_provider_key(self, any_llm_key: str, provider: str) -> DecryptedProviderKey:
         """Asynchronously get a decrypted provider API key using the complete authentication flow.
 
-        This is a convenience method that handles the entire flow asynchronously:
+        This is a convenience method that handles the entire flow asynchronously with token-based auth:
         1. Parse the ANY_LLM_KEY
-        2. Extract public key from private key
-        3. Create authentication challenge (async)
-        4. Solve the challenge
-        5. Fetch the encrypted provider key (async)
-        6. Decrypt and return the provider key with metadata
+        2. Ensure valid access token (request if needed)
+        3. Fetch the encrypted provider key using Bearer token (async)
+        4. Decrypt and return the provider key with metadata
 
         Args:
             any_llm_key: The ANY_LLM_KEY string (format: ANY.v1.<kid>.<fingerprint>-<base64_key>)
@@ -424,21 +618,15 @@ class AnyLLMPlatformClient:
             >>> print(result.api_key)
             >>> print(result.provider_key_id)
         """
-        # Parse the ANY_LLM_KEY
-        key_components = parse_any_llm_key(any_llm_key)
+        # Ensure we have a valid access token
+        access_token = await self._aensure_valid_token(any_llm_key)
 
-        # Load the private key
+        # Parse the ANY_LLM_KEY and load private key for decryption
+        key_components = parse_any_llm_key(any_llm_key)
         private_key = load_private_key(key_components.base64_encoded_private_key)
 
-        # Extract the public key from the private key
-        public_key = extract_public_key(private_key)
-
-        # Create and solve the challenge
-        challenge_data = await self.acreate_challenge(public_key)
-        solved_challenge = self.solve_challenge(challenge_data["encrypted_challenge"], private_key)
-
-        # Fetch the encrypted provider key
-        provider_key_data = await self.afetch_provider_key(provider, public_key, solved_challenge)
+        # Fetch the encrypted provider key using Bearer token
+        provider_key_data = await self.afetch_provider_key(provider, access_token=access_token)
 
         # Decrypt the provider key
         decrypted_key = self.decrypt_provider_key_value(provider_key_data["encrypted_key"], private_key)
