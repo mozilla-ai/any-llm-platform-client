@@ -72,14 +72,17 @@ class AnyLLMPlatformClient:
     - Async: acreate_challenge, afetch_provider_key
     """
 
-    def __init__(self, any_llm_platform_url: str | None = None) -> None:
+    def __init__(self, any_llm_platform_url: str | None = None, client_name: str | None = None) -> None:
         """Initialize the client with an optional platform URL.
 
         Args:
             any_llm_platform_url: Base URL for the ANY LLM platform API.
                 Defaults to "http://localhost:8000/api/v1" if not provided.
+            client_name: Optional client name to identify this client to the platform.
+                Used for budget enforcement and usage tracking.
         """
         self.any_llm_platform_url = any_llm_platform_url or "http://localhost:8000/api/v1"
+        self.client_name = client_name
         self.access_token: str | None = None
         self.token_expires_at: datetime | None = None
 
@@ -381,6 +384,8 @@ class AnyLLMPlatformClient:
         start_time = time.perf_counter()
 
         headers = {"Authorization": f"Bearer {access_token}"}
+        if self.client_name:
+            headers["AnyLLM-Client-Name"] = self.client_name
 
         with httpx.Client() as client:
             response = client.get(
@@ -410,6 +415,8 @@ class AnyLLMPlatformClient:
         start_time = time.perf_counter()
 
         headers = {"Authorization": f"Bearer {access_token}"}
+        if self.client_name:
+            headers["AnyLLM-Client-Name"] = self.client_name
 
         async with httpx.AsyncClient() as client:
             response = await client.get(

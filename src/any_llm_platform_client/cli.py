@@ -42,9 +42,14 @@ def _run_decryption(provider: str, any_llm_key: str, client: AnyLLMPlatformClien
     help="any llm platform base URL to use (overrides default)",
 )
 @click.option("--any-llm-key", "any_llm_key", help="ANY_LLM_KEY string to use (skips prompt)")
+@click.option("--client-name", "client_name", help="Client name for budget enforcement")
 @click.option("-v", "--verbose", is_flag=True, help="Enable verbose (DEBUG) logging")
 def main(
-    provider: str | None, any_llm_platform_url: str | None, any_llm_key: str | None, verbose: bool = False
+    provider: str | None,
+    any_llm_platform_url: str | None,
+    any_llm_key: str | None,
+    client_name: str | None,
+    verbose: bool = False,
 ) -> None:
     """CLI entry point for decrypting provider API keys from ANY LLM platform."""
     try:
@@ -55,7 +60,7 @@ def main(
         if any_llm_platform_url is None and any_llm_platform_url_env:
             any_llm_platform_url = any_llm_platform_url_env
 
-        client = AnyLLMPlatformClient(any_llm_platform_url) if any_llm_platform_url else AnyLLMPlatformClient()
+        client = AnyLLMPlatformClient(any_llm_platform_url, client_name=client_name)
 
         if provider is None:
             provider = click.prompt("Enter Provider name (e.g., openai, anthropic)")
