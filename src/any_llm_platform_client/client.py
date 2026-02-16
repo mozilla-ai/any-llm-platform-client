@@ -54,11 +54,14 @@ def _handle_challenge_error(response: httpx.Response) -> None:
 def _handle_provider_key_error(response: httpx.Response) -> None:
     """Handle error response from provider key fetch."""
     logger.error("❌ Error fetching provider key: %s", response.status_code)
+    detail = None
     try:
-        logger.debug(response.json())
+        response_json = response.json()
+        detail = response_json.get("detail")
+        logger.debug(response_json)
     except ValueError:
         logger.debug("Response content is not valid JSON")
-    raise ProviderKeyFetchError(f"Failed to fetch provider key (status: {response.status_code})")
+    raise ProviderKeyFetchError(f"Failed to fetch provider key (status: {response.status_code}, detail: {detail})")
 
 
 class AnyLLMPlatformClient:
