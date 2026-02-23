@@ -63,6 +63,7 @@ unfixable = [
 [lint.per-file-ignores]
 "__init__.py" = ["F401", "D104"]  # Allow unused imports and missing docstrings in __init__.py
 "tests/**" = ["D", "N", "ANN"]   # Skip docstrings, naming conventions, and annotations in tests
+"cli.py" = ["ANN401"]  # Allow Any for output formatting functions that handle various response types
 
 [lint.pydocstyle]
 convention = "google"
