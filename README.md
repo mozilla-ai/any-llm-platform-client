@@ -39,15 +39,169 @@ any-llm <provider>
 
 ### Command Line Interface
 
-Interactive mode (prompts for provider):
+The CLI provides a unified interface for managing your any-llm platform:
+
 ```bash
-export ANY_LLM_KEY='ANY.v1.<kid>.<fingerprint>-<base64_key>'
-any-llm
+# Get help
+any-llm --help
+
+# View available commands
+any-llm project --help
+any-llm key --help
+any-llm budget --help
+any-llm client --help
 ```
 
-Direct mode (specify provider as argument):
+#### Authentication
+
+Set credentials for management commands:
+
 ```bash
-any-llm openai
+export ANY_LLM_USERNAME="your-email@example.com"
+export ANY_LLM_PASSWORD="your-password"  # pragma: allowlist secret
+export ANY_LLM_PLATFORM_URL="http://localhost:8000/api/v1"  # optional
+```
+
+#### Managing Projects
+
+```bash
+# List all projects
+any-llm project list
+
+# Create a new project
+any-llm project create "My Project" --description "My project description"
+
+# Show project details
+any-llm project show <project-id>
+
+# Update a project
+any-llm project update <project-id> --name "Updated Name"
+
+# Delete a project
+any-llm project delete <project-id>
+```
+
+#### Managing Provider Keys
+
+```bash
+# List provider keys for a project
+any-llm key list <project-id>
+
+# Create a provider key
+any-llm key create <project-id> openai <encrypted-key>
+
+# Update a provider key
+any-llm key update <provider-key-id> <encrypted-key>
+
+# Archive a provider key (soft delete)
+any-llm key delete <provider-key-id>
+
+# Permanently delete a provider key
+any-llm key delete <provider-key-id> --permanent
+
+# Restore an archived key
+any-llm key unarchive <provider-key-id>
+```
+
+#### Generating New Encryption Keys
+
+Generate a new encryption key and automatically migrate provider keys:
+
+```bash
+# Generate new key and migrate from old key
+any-llm key generate <project-id> --old-key "ANY.v1.<old-key>"
+
+# Generate new key without migration (archives all provider keys)
+any-llm key generate <project-id>
+
+# Skip confirmation prompts (for automation)
+any-llm key generate <project-id> --old-key "ANY.v1.<old-key>" --yes
+```
+
+This command will:
+1. Generate a new X25519 keypair
+2. Update the project's encryption key
+3. Migrate all provider keys from the old key to the new key (if old key provided)
+4. Display the new ANY_LLM_KEY (save it securely!)
+
+**Important:** Save the generated `ANY_LLM_KEY` in a secure location. It cannot be recovered if lost!
+
+**Migration Behavior:**
+- **With old key:** Successfully decrypted provider keys are re-encrypted with the new key. Keys that fail to decrypt are archived.
+- **Without old key:** All encrypted provider keys are archived. You'll need to re-enter them in the web interface.
+- **Local providers** (e.g., Ollama with empty keys) are skipped during migration.
+
+#### Decrypting Provider Keys
+
+Decrypt a provider API key using your ANY_LLM_KEY:
+
+```bash
+# Set your ANY_LLM_KEY
+export ANY_LLM_KEY='ANY.v1.<kid>.<fingerprint>-<base64_key>'
+
+# Decrypt a provider key
+any-llm key decrypt openai
+any-llm key decrypt anthropic
+
+# Or provide the key inline
+any-llm --any-llm-key 'ANY.v1...' key decrypt openai
+```
+
+#### Managing Budgets
+
+```bash
+# List budgets for a project
+any-llm budget list <project-id>
+
+# Create a project budget
+any-llm budget create <project-id> 100.00 --period monthly
+
+# Show a specific budget
+any-llm budget show <project-id> monthly
+
+# Update a budget
+any-llm budget update <project-id> monthly 200.00
+
+# Delete a budget
+any-llm budget delete <project-id> monthly
+```
+
+Budget periods: `daily`, `weekly`, `monthly`
+
+#### Managing Clients
+
+```bash
+# List clients for a project
+any-llm client list <project-id>
+
+# Create a new client
+any-llm client create <project-id> "My Client" --default
+
+# Show client details
+any-llm client show <project-id> <client-id>
+
+# Update a client
+any-llm client update <project-id> <client-id> --name "Updated Client"
+
+# Set as default client
+any-llm client set-default <project-id> <client-id>
+
+# Delete a client
+any-llm client delete <project-id> <client-id>
+```
+
+#### Output Formats
+
+All commands support two output formats:
+- `table` (default): Human-readable formatted output
+- `json`: Machine-readable JSON output for scripting
+
+```bash
+# Get JSON output for scripting
+any-llm --format json project list
+
+# Example: Extract project ID
+PROJECT_ID=$(any-llm --format json project create "New Project" | jq -r '.id')
 ```
 
 ### Configuring the API Base URL
@@ -64,13 +218,12 @@ client = AnyLLMPlatformClient(any_llm_platform_url="https://api.example.com/v1")
 challenge_data = client.create_challenge(public_key)
 ```
 
-Or set the environment variable before running the CLI. The CLI will use the
-first defined of `--api-base-url` or `ANY_LLM_PLATFORM_URL`.
+Or set the `ANY_LLM_PLATFORM_URL` environment variable before running the CLI:
 
 ```bash
 # Example: temporarily point CLI to a staging backend
 export ANY_LLM_PLATFORM_URL="https://staging-api.example.com/v1"
-any-llm openai
+any-llm key decrypt openai
 ```
 
 ### As a Python Library
@@ -166,7 +319,9 @@ asyncio.run(main())
 ANY.v1.<kid>.<fingerprint>-<base64_32byte_private_key>
 ```
 
-Generate your ANY_LLM_KEY from the project page in the web UI.
+You can generate a new ANY_LLM_KEY using:
+- The CLI: `any-llm key generate <project-id>`
+- The project page in the web UI
 
 ## Security Notes
 
