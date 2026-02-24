@@ -9,8 +9,24 @@ from any_llm_platform_client.cli import cli
 
 
 @pytest.fixture
-def runner():
-    """Create a Click CLI test runner."""
+def isolated_config(tmp_path, monkeypatch):
+    """Isolate config directory for tests to prevent using user's actual config."""
+    config_dir = tmp_path / ".any-llm"
+    config_file = config_dir / "config.json"
+
+    # Monkey patch the config paths
+    monkeypatch.setattr("any_llm_platform_client.config.CONFIG_DIR", config_dir)
+    monkeypatch.setattr("any_llm_platform_client.config.CONFIG_FILE", config_file)
+
+    # Also patch the imports in cli module
+    monkeypatch.setattr("any_llm_platform_client.cli.get_oauth_token", lambda: None)
+
+    return config_dir, config_file
+
+
+@pytest.fixture
+def runner(isolated_config):  # noqa: ARG001 - fixture used for side effects
+    """Create a Click CLI test runner with isolated config."""
     return CliRunner()
 
 
