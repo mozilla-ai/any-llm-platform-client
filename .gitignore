@@ -16,3 +16,4 @@ src/any_llm_platform_client/_version.py
 
 .coverage
 .ralph/
+.DS_Store/
