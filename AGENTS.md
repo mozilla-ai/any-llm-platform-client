@@ -37,9 +37,10 @@ The repository follows a **structured documentation approach** inspired by agent
 |----------|---------|
 | `docs/DEVELOPMENT.md` | Development workflow, commands, testing |
 | `docs/CODE_STYLE.md` | Style guide, formatting, naming, type hints |
-| `docs/CLI_USAGE.md` | CLI commands, authentication, examples |
+| `docs/CLI_USAGE.md` | CLI commands, OAuth authentication, examples |
 | `docs/architecture/CRYPTOGRAPHY.md` | Encryption design, security properties |
 | `docs/architecture/PROJECT_STRUCTURE.md` | Code organization, module responsibilities |
+| `docs/architecture/OAUTH_BACKEND.md` | Backend OAuth requirements for CLI support |
 
 ### Quick Reference
 
@@ -102,11 +103,13 @@ from .client import AnyLLMPlatformClient
 ```
 src/any_llm_platform_client/
 ├── __init__.py           # Public API exports
-├── cli.py                # Click CLI commands
+├── cli.py                # Click CLI commands (includes OAuth)
 ├── client.py             # Core decryption client
 ├── client_management.py  # Management API (CRUD)
+├── config.py             # OAuth token storage
 ├── crypto.py             # X25519 cryptography
-└── exceptions.py         # Custom exceptions
+├── exceptions.py         # Custom exceptions
+└── oauth.py              # OAuth flow implementation
 
 tests/
 ├── test_basic.py         # Basic imports
@@ -117,18 +120,21 @@ tests/
 docs/
 ├── DEVELOPMENT.md        # Build, test, lint
 ├── CODE_STYLE.md         # Style guide
-├── CLI_USAGE.md          # CLI reference
+├── CLI_USAGE.md          # CLI reference (includes OAuth auth)
 └── architecture/         # Design docs
     ├── CRYPTOGRAPHY.md
+    ├── OAUTH_BACKEND.md
     └── PROJECT_STRUCTURE.md
 ```
 
 ## Environment Variables
 
-- `ANY_LLM_USERNAME`: Username for management commands
-- `ANY_LLM_PASSWORD`: Password for management commands
-- `ANY_LLM_PLATFORM_URL`: API base URL (default: `http://localhost:8000/api/v1`)
+- `ANY_LLM_USERNAME`: Username for management commands (alternative to OAuth)
+- `ANY_LLM_PASSWORD`: Password for management commands (alternative to OAuth)
+- `ANY_LLM_PLATFORM_URL`: API base URL (default: `https://platform-api.any-llm.ai/api/v1`)
 - `ANY_LLM_KEY`: Encryption key format: `ANY.v1.<kid>.<fingerprint>-<base64_key>`
+
+**Note**: OAuth authentication is recommended. Credentials are stored in `~/.any-llm/config.json`.
 
 ## Common Pitfalls
 
