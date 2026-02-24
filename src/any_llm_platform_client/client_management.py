@@ -43,7 +43,8 @@ class ManagementMixin:
                 error_detail = response.json()
                 if "detail" in error_detail:
                     error_msg += f": {error_detail['detail']}"
-            except Exception:
+            except (ValueError, KeyError):
+                # Response body is not JSON or doesn't have 'detail' field
                 pass
             raise AuthenticationError(error_msg)
 
