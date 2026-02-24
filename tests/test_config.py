@@ -210,6 +210,8 @@ def test_clear_oauth_token(temp_config_dir):
 
 def test_config_file_permissions(temp_config_dir):
     """Test that config file has correct permissions."""
+    import platform
+
     config_dir, config_file = temp_config_dir
 
     save_oauth_token(
@@ -219,8 +221,10 @@ def test_config_file_permissions(temp_config_dir):
     )
 
     # Check file permissions (0600 = owner read/write only)
-    file_mode = config_file.stat().st_mode & 0o777
-    assert file_mode == 0o600
+    # Skip on Windows as it uses different permission model (ACLs)
+    if platform.system() != "Windows":
+        file_mode = config_file.stat().st_mode & 0o777
+        assert file_mode == 0o600
 
 
 def test_load_config_invalid_json(temp_config_dir):
