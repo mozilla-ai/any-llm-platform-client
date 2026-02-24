@@ -17,8 +17,6 @@ class ChallengeCreationError(Exception):
     The exception message will contain details about the specific failure.
     """
 
-    pass
-
 
 class ProviderKeyFetchError(Exception):
     """Raised when fetching a provider API key fails.
@@ -33,5 +31,3 @@ class ProviderKeyFetchError(Exception):
     The exception message will contain details about the specific failure,
     including the HTTP status code received from the server.
     """
-
-    pass
