@@ -1,79 +1,79 @@
 """Edge case tests for improved coverage."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from any_llm_platform_client import AnyLLMPlatformClient
 from any_llm_platform_client.client_management import AuthenticationError
-from any_llm_platform_client.exceptions import ChallengeCreationError
+from any_llm_platform_client.exceptions import ChallengeCreationError, ProviderKeyFetchError
 
 
 class TestClientEdgeCasesAdditional:
     """Additional edge case tests for client module."""
 
-    def test_create_challenge_invalid_json_response(self):
+    def test_create_challenge_invalid_json_response(self, sample_api_url, mock_httpx_client):
         """Test create_challenge with invalid JSON response."""
-        client = AnyLLMPlatformClient("https://api.example.com")
+        client = AnyLLMPlatformClient(sample_api_url)
         mock_response = MagicMock()
         mock_response.status_code = 500
         mock_response.json.side_effect = ValueError("Invalid JSON")
+        mock_httpx_client.post.return_value = mock_response
 
-        with patch("httpx.Client") as mock_client_class:
-            mock_client = MagicMock()
-            mock_client.__enter__ = MagicMock(return_value=mock_client)
-            mock_client.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = mock_response
-            mock_client_class.return_value = mock_client
+        with pytest.raises(ChallengeCreationError):
+            client.create_challenge("test-public-key")
 
-            with pytest.raises(ChallengeCreationError):
-                client.create_challenge("test-public-key")
-
-    def test_fetch_provider_key_invalid_json_response(self):
+    def test_fetch_provider_key_invalid_json_response(self, sample_api_url, sample_jwt_token, mock_httpx_client):
         """Test fetch_provider_key with invalid JSON response."""
-        client = AnyLLMPlatformClient("https://api.example.com")
-        access_token = "test-token"
+        client = AnyLLMPlatformClient(sample_api_url)
         mock_response = MagicMock()
         mock_response.status_code = 500
         mock_response.json.side_effect = ValueError("Invalid JSON")
+        mock_httpx_client.get.return_value = mock_response
 
-        with patch("httpx.Client") as mock_client_class:
-            mock_client = MagicMock()
-            mock_client.__enter__ = MagicMock(return_value=mock_client)
-            mock_client.__exit__ = MagicMock(return_value=False)
-            mock_client.get.return_value = mock_response
-            mock_client_class.return_value = mock_client
-
-            with pytest.raises((ValueError, Exception)):
-                client.fetch_provider_key("openai", access_token)
+        with pytest.raises(ProviderKeyFetchError):
+            client.fetch_provider_key("openai", sample_jwt_token)
 
 
 class TestClientManagementEdgeCases:
     """Edge case tests for client_management module."""
 
-    def test_create_project_not_authenticated(self):
-        """Test creating project without authentication."""
+    def test_create_project_not_authenticated(self, mock_httpx_client):
+        """Test creating project without authentication raises error without making HTTP calls."""
         client = AnyLLMPlatformClient()
+
         with pytest.raises(AuthenticationError, match="Not authenticated"):
             client.create_project("Test Project")
 
-    def test_get_project_not_authenticated(self):
-        """Test getting project without authentication."""
+        # Verify no HTTP request was made
+        mock_httpx_client.post.assert_not_called()
+
+    def test_get_project_not_authenticated(self, mock_httpx_client):
+        """Test getting project without authentication raises error without making HTTP calls."""
         client = AnyLLMPlatformClient()
+
         with pytest.raises(AuthenticationError, match="Not authenticated"):
             client.get_project("proj-123")
 
-    def test_update_project_not_authenticated(self):
-        """Test updating project without authentication."""
+        mock_httpx_client.get.assert_not_called()
+
+    def test_update_project_not_authenticated(self, mock_httpx_client):
+        """Test updating project without authentication raises error without making HTTP calls."""
         client = AnyLLMPlatformClient()
+
         with pytest.raises(AuthenticationError, match="Not authenticated"):
             client.update_project("proj-123", name="New Name")
 
-    def test_delete_project_not_authenticated(self):
-        """Test deleting project without authentication."""
+        mock_httpx_client.put.assert_not_called()
+
+    def test_delete_project_not_authenticated(self, mock_httpx_client):
+        """Test deleting project without authentication raises error without making HTTP calls."""
         client = AnyLLMPlatformClient()
+
         with pytest.raises(AuthenticationError, match="Not authenticated"):
             client.delete_project("proj-123")
+
+        mock_httpx_client.delete.assert_not_called()
 
     def test_list_provider_keys_not_authenticated(self):
         """Test listing provider keys without authentication."""

@@ -2,6 +2,7 @@
 
 import base64
 
+import nacl.exceptions
 import nacl.public
 import pytest
 
@@ -92,7 +93,8 @@ class TestLoadPrivateKey:
 
     def test_load_key_invalid_base64(self):
         """Test that invalid base64 raises error."""
-        with pytest.raises((ValueError, Exception)):  # base64.binascii.Error or ValueError
+        # binascii.Error is a subclass of ValueError
+        with pytest.raises(ValueError):
             load_private_key("not-valid-base64!!!")
 
     def test_load_key_empty_string(self):
@@ -189,8 +191,8 @@ class TestEncryptDecryptData:
 
         encrypted = encrypt_data(plaintext, public_key1)
 
-        # Attempting to decrypt with wrong key should raise exception
-        with pytest.raises((ValueError, Exception)):  # nacl raises various crypto exceptions
+        # Attempting to decrypt with wrong key should raise nacl's CryptoError
+        with pytest.raises(nacl.exceptions.CryptoError):
             decrypt_data(encrypted, private_key2)
 
     def test_decrypt_invalid_data_too_short(self):
@@ -206,7 +208,8 @@ class TestEncryptDecryptData:
         """Test that decryption with invalid base64 raises error."""
         private_key = nacl.public.PrivateKey.generate()
 
-        with pytest.raises((ValueError, Exception)):  # base64.binascii.Error
+        # binascii.Error is a subclass of ValueError
+        with pytest.raises(ValueError):
             decrypt_data("not-valid-base64!!!", private_key)
 
     def test_encrypt_produces_different_ciphertexts(self):

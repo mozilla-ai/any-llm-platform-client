@@ -10,211 +10,149 @@ from any_llm_platform_client import AnyLLMPlatformClient, ChallengeCreationError
 
 
 def test_client_default_url():
+    """Test that client uses default URL when none provided."""
     client = AnyLLMPlatformClient()
     assert client.any_llm_platform_url == "http://localhost:8000/api/v1"
 
 
 def test_client_custom_url():
+    """Test that client uses custom URL when provided."""
     custom_url = "https://api.example.com/v1"
     client = AnyLLMPlatformClient(custom_url)
     assert client.any_llm_platform_url == custom_url
 
 
-def test_create_challenge_success():
-    client = AnyLLMPlatformClient("https://api.example.com")
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = {"encrypted_challenge": "test-challenge"}
+def test_create_challenge_success(sample_api_url, mock_httpx_client, make_challenge_response):
+    """Test successful challenge creation."""
+    client = AnyLLMPlatformClient(sample_api_url)
+    mock_httpx_client.post.return_value = make_challenge_response("test-challenge")
 
-    with patch("httpx.Client") as mock_client_class:
-        mock_client = MagicMock()
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
-        mock_client.post.return_value = mock_response
-        mock_client_class.return_value = mock_client
-
-        result = client.create_challenge("test-public-key")
+    result = client.create_challenge("test-public-key")
 
     assert result == {"encrypted_challenge": "test-challenge"}
-    mock_client.post.assert_called_once_with(
-        "https://api.example.com/auth/",
+    mock_httpx_client.post.assert_called_once_with(
+        f"{sample_api_url}/auth/",
         json={"encryption_key": "test-public-key"},
     )
 
 
-def test_create_challenge_error():
-    client = AnyLLMPlatformClient("https://api.example.com")
-    mock_response = MagicMock()
-    mock_response.status_code = 400
-    mock_response.json.return_value = {"error": "Bad request"}
+def test_create_challenge_error(sample_api_url, mock_httpx_client, make_error_response):
+    """Test challenge creation with API error."""
+    client = AnyLLMPlatformClient(sample_api_url)
+    mock_httpx_client.post.return_value = make_error_response(400, "Bad request")
 
-    with patch("httpx.Client") as mock_client_class:
-        mock_client = MagicMock()
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
-        mock_client.post.return_value = mock_response
-        mock_client_class.return_value = mock_client
-
-        with pytest.raises(ChallengeCreationError, match="status: 400"):
-            client.create_challenge("test-public-key")
+    with pytest.raises(ChallengeCreationError, match="status: 400"):
+        client.create_challenge("test-public-key")
 
 
-def test_create_challenge_no_project_error():
-    client = AnyLLMPlatformClient("https://api.example.com")
-    mock_response = MagicMock()
-    mock_response.status_code = 404
-    mock_response.json.return_value = {"error": "No project found"}
+def test_create_challenge_no_project_error(sample_api_url, mock_httpx_client, make_error_response):
+    """Test challenge creation when no project exists."""
+    client = AnyLLMPlatformClient(sample_api_url)
+    mock_httpx_client.post.return_value = make_error_response(404, "No project found")
 
-    with patch("httpx.Client") as mock_client_class:
-        mock_client = MagicMock()
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
-        mock_client.post.return_value = mock_response
-        mock_client_class.return_value = mock_client
-
-        with pytest.raises(ChallengeCreationError, match="No project found"):
-            client.create_challenge("test-public-key")
+    with pytest.raises(ChallengeCreationError, match="No project found"):
+        client.create_challenge("test-public-key")
 
 
-def test_fetch_provider_key_success():
+def test_fetch_provider_key_success(sample_api_url, sample_jwt_token, mock_httpx_client, make_mock_response):
     """Test fetching provider key with Bearer token."""
-    client = AnyLLMPlatformClient("https://api.example.com")
-    access_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = {
-        "encrypted_key": "encrypted-api-key",
-        "provider": "openai",
-        "project_id": "proj-123",
-    }
+    client = AnyLLMPlatformClient(sample_api_url)
+    mock_httpx_client.get.return_value = make_mock_response(
+        200,
+        {
+            "encrypted_key": "encrypted-api-key",
+            "provider": "openai",
+            "project_id": "proj-123",
+        },
+    )
 
-    with patch("httpx.Client") as mock_client_class:
-        mock_client = MagicMock()
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
-        mock_client.get.return_value = mock_response
-        mock_client_class.return_value = mock_client
-
-        result = client.fetch_provider_key("openai", access_token)
+    result = client.fetch_provider_key("openai", sample_jwt_token)
 
     assert result == {
         "encrypted_key": "encrypted-api-key",
         "provider": "openai",
         "project_id": "proj-123",
     }
-    mock_client.get.assert_called_once_with(
-        "https://api.example.com/provider-keys/openai",
-        headers={"Authorization": f"Bearer {access_token}"},
+    mock_httpx_client.get.assert_called_once_with(
+        f"{sample_api_url}/provider-keys/openai",
+        headers={"Authorization": f"Bearer {sample_jwt_token}"},
     )
 
 
-def test_fetch_provider_key_error():
+def test_fetch_provider_key_error(sample_api_url, sample_jwt_token, mock_httpx_client, make_error_response):
     """Test failed provider key fetch with Bearer token."""
-    client = AnyLLMPlatformClient("https://api.example.com")
-    access_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-    mock_response = MagicMock()
-    mock_response.status_code = 401
-    mock_response.json.return_value = {"error": "Unauthorized"}
+    client = AnyLLMPlatformClient(sample_api_url)
+    mock_httpx_client.get.return_value = make_error_response(401, "Unauthorized")
 
-    with patch("httpx.Client") as mock_client_class:
-        mock_client = MagicMock()
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
-        mock_client.get.return_value = mock_response
-        mock_client_class.return_value = mock_client
-
-        with pytest.raises(ProviderKeyFetchError, match="status: 401"):
-            client.fetch_provider_key("openai", access_token)
+    with pytest.raises(ProviderKeyFetchError, match="status: 401"):
+        client.fetch_provider_key("openai", sample_jwt_token)
 
 
 @pytest.mark.asyncio
-async def test_acreate_challenge_success():
-    client = AnyLLMPlatformClient("https://api.example.com")
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = {"encrypted_challenge": "test-challenge"}
+async def test_acreate_challenge_success(sample_api_url, mock_httpx_async_client, make_challenge_response):
+    """Test successful async challenge creation."""
+    client = AnyLLMPlatformClient(sample_api_url)
+    mock_httpx_async_client.post = AsyncMock(return_value=make_challenge_response("test-challenge"))
 
-    with patch("any_llm_platform_client.client.httpx.AsyncClient") as mock_client_class:
-        mock_client_instance = MagicMock()
-        mock_client_instance.post = AsyncMock(return_value=mock_response)
-        mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client_instance)
-        mock_client_class.return_value.__aexit__ = AsyncMock(return_value=None)
-
-        result = await client.acreate_challenge("test-public-key")
+    result = await client.acreate_challenge("test-public-key")
 
     assert result == {"encrypted_challenge": "test-challenge"}
-    mock_client_instance.post.assert_called_once_with(
-        "https://api.example.com/auth/",
+    mock_httpx_async_client.post.assert_called_once_with(
+        f"{sample_api_url}/auth/",
         json={"encryption_key": "test-public-key"},
     )
 
 
 @pytest.mark.asyncio
-async def test_acreate_challenge_error():
-    client = AnyLLMPlatformClient("https://api.example.com")
-    mock_response = MagicMock()
-    mock_response.status_code = 500
-    mock_response.json.return_value = {"error": "Internal server error"}
+async def test_acreate_challenge_error(sample_api_url, mock_httpx_async_client, make_error_response):
+    """Test async challenge creation with API error."""
+    client = AnyLLMPlatformClient(sample_api_url)
+    mock_httpx_async_client.post = AsyncMock(return_value=make_error_response(500, "Internal server error"))
 
-    with patch("any_llm_platform_client.client.httpx.AsyncClient") as mock_client_class:
-        mock_client_instance = MagicMock()
-        mock_client_instance.post = AsyncMock(return_value=mock_response)
-        mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client_instance)
-        mock_client_class.return_value.__aexit__ = AsyncMock(return_value=None)
-
-        with pytest.raises(ChallengeCreationError, match="status: 500"):
-            await client.acreate_challenge("test-public-key")
+    with pytest.raises(ChallengeCreationError, match="status: 500"):
+        await client.acreate_challenge("test-public-key")
 
 
 @pytest.mark.asyncio
-async def test_afetch_provider_key_success():
+async def test_afetch_provider_key_success(
+    sample_api_url, sample_jwt_token, mock_httpx_async_client, make_mock_response
+):
     """Test successful async provider key fetch with Bearer token."""
-    client = AnyLLMPlatformClient("https://api.example.com")
-    access_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = {
-        "encrypted_key": "encrypted-api-key",
-        "provider": "anthropic",
-        "project_id": "proj-456",
-    }
+    client = AnyLLMPlatformClient(sample_api_url)
+    mock_httpx_async_client.get = AsyncMock(
+        return_value=make_mock_response(
+            200,
+            {
+                "encrypted_key": "encrypted-api-key",
+                "provider": "anthropic",
+                "project_id": "proj-456",
+            },
+        )
+    )
 
-    with patch("any_llm_platform_client.client.httpx.AsyncClient") as mock_client_class:
-        mock_client_instance = MagicMock()
-        mock_client_instance.get = AsyncMock(return_value=mock_response)
-        mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client_instance)
-        mock_client_class.return_value.__aexit__ = AsyncMock(return_value=None)
-
-        result = await client.afetch_provider_key("anthropic", access_token)
+    result = await client.afetch_provider_key("anthropic", sample_jwt_token)
 
     assert result == {
         "encrypted_key": "encrypted-api-key",
         "provider": "anthropic",
         "project_id": "proj-456",
     }
-    mock_client_instance.get.assert_called_once_with(
-        "https://api.example.com/provider-keys/anthropic",
-        headers={"Authorization": f"Bearer {access_token}"},
+    mock_httpx_async_client.get.assert_called_once_with(
+        f"{sample_api_url}/provider-keys/anthropic",
+        headers={"Authorization": f"Bearer {sample_jwt_token}"},
     )
 
 
 @pytest.mark.asyncio
-async def test_afetch_provider_key_error():
+async def test_afetch_provider_key_error(
+    sample_api_url, sample_jwt_token, mock_httpx_async_client, make_error_response
+):
     """Test failed async provider key fetch with Bearer token."""
-    client = AnyLLMPlatformClient("https://api.example.com")
-    access_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-    mock_response = MagicMock()
-    mock_response.status_code = 403
-    mock_response.json.return_value = {"error": "Forbidden"}
+    client = AnyLLMPlatformClient(sample_api_url)
+    mock_httpx_async_client.get = AsyncMock(return_value=make_error_response(403, "Forbidden"))
 
-    with patch("any_llm_platform_client.client.httpx.AsyncClient") as mock_client_class:
-        mock_client_instance = MagicMock()
-        mock_client_instance.get = AsyncMock(return_value=mock_response)
-        mock_client_class.return_value.__aenter__ = AsyncMock(return_value=mock_client_instance)
-        mock_client_class.return_value.__aexit__ = AsyncMock(return_value=None)
-
-        with pytest.raises(ProviderKeyFetchError, match="status: 403"):
-            await client.afetch_provider_key("anthropic", access_token)
+    with pytest.raises(ProviderKeyFetchError, match="status: 403"):
+        await client.afetch_provider_key("anthropic", sample_jwt_token)
 
 
 def test_request_access_token_success():
