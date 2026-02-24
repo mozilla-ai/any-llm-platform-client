@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 import httpx
+import nacl.public
 
 from .client_management import ManagementMixin
 from .crypto import decrypt_data, extract_public_key, load_private_key, parse_any_llm_key
@@ -180,7 +181,7 @@ class AnyLLMPlatformClient(ManagementMixin):
         logger.debug("✅ Challenge created (%.2fms)", elapsed_ms)
         return response.json()
 
-    def solve_challenge(self, encrypted_challenge: str, private_key: object) -> uuid.UUID:
+    def solve_challenge(self, encrypted_challenge: str, private_key: nacl.public.PrivateKey) -> uuid.UUID:
         """Decrypt and solve the authentication challenge.
 
         Args:
@@ -476,7 +477,7 @@ class AnyLLMPlatformClient(ManagementMixin):
         logger.debug("✅ Provider key fetched (%.2fms)", elapsed_ms)
         return data
 
-    def decrypt_provider_key_value(self, encrypted_key: str, private_key: object) -> str:
+    def decrypt_provider_key_value(self, encrypted_key: str, private_key: nacl.public.PrivateKey) -> str:
         """Decrypt the provider API key.
 
         Args:
