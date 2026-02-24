@@ -28,6 +28,24 @@ logger = logging.getLogger(__name__)
 # Console that adapts to terminal width
 console = Console()
 
+# Terminal width breakpoints for responsive layout
+TERMINAL_WIDTH_NARROW = 100
+TERMINAL_WIDTH_MEDIUM = 120
+TERMINAL_WIDTH_WIDE = 140
+
+# Column width constants
+ID_WIDTH_NARROW = 13  # Show first 8 and last 4 chars with ellipsis: "5f1e9b62…edd8"
+ID_WIDTH_MEDIUM = 20
+ID_WIDTH_FULL = 36  # Full UUID
+NAME_WIDTH = 20
+DESCRIPTION_WIDTH_NARROW = 35
+DESCRIPTION_WIDTH_MEDIUM = 45
+DESCRIPTION_WIDTH_WIDE = 60
+DATE_WIDTH = 15  # Show formatted date: "Feb 23, 2026"
+
+# Display constants
+PROJECT_ID_DISPLAY_LENGTH = 8  # Show first 8 chars of project ID in messages
+
 
 # ========== Custom Click Group ==========
 # (Removed DefaultCommandGroup - all commands are now explicit)
@@ -40,7 +58,7 @@ def _get_any_llm_key(cli_key: str | None) -> str:
     if cli_key:
         return cli_key
 
-    env_key = __import__("os").environ.get("ANY_LLM_KEY")
+    env_key = os.environ.get("ANY_LLM_KEY")
     if env_key:
         return env_key
 
@@ -196,6 +214,92 @@ def _transform_provider_key_data(items: list[dict]) -> list[dict]:
     return transformed
 
 
+def _config_for_name_column() -> dict[str, Any]:
+    """Get column configuration for name field."""
+    return {
+        "show": True,
+        "no_wrap": True,
+        "overflow": "ellipsis",
+        "max_width": NAME_WIDTH,
+    }
+
+
+def _config_for_id_column(terminal_width: int) -> dict[str, Any]:
+    """Get column configuration for ID field with smart truncation."""
+    if terminal_width < TERMINAL_WIDTH_NARROW:
+        id_width = ID_WIDTH_NARROW
+    elif terminal_width < TERMINAL_WIDTH_MEDIUM:
+        id_width = ID_WIDTH_MEDIUM
+    else:
+        id_width = ID_WIDTH_FULL
+    return {
+        "show": True,
+        "no_wrap": True,
+        "overflow": "ellipsis",
+        "max_width": id_width,
+    }
+
+
+def _config_for_description_column(terminal_width: int) -> dict[str, Any]:
+    """Get column configuration for description field with responsive width."""
+    if terminal_width < TERMINAL_WIDTH_NARROW:
+        desc_width = DESCRIPTION_WIDTH_NARROW
+    elif terminal_width < TERMINAL_WIDTH_MEDIUM:
+        desc_width = DESCRIPTION_WIDTH_MEDIUM
+    else:
+        desc_width = DESCRIPTION_WIDTH_WIDE
+    return {
+        "show": True,
+        "no_wrap": False,
+        "overflow": "fold",
+        "max_width": desc_width,
+    }
+
+
+def _config_for_date_column(header: str, terminal_width: int) -> dict[str, Any]:
+    """Get column configuration for date fields."""
+    # Updated timestamps hide in narrow terminals to save space
+    if header in ["updated_at", "updated"]:
+        return {
+            "show": terminal_width >= TERMINAL_WIDTH_MEDIUM,
+            "no_wrap": True,
+            "overflow": "ellipsis",
+            "max_width": DATE_WIDTH,
+        }
+    # Created timestamps always show
+    return {
+        "show": True,
+        "no_wrap": True,
+        "overflow": "ellipsis",
+        "max_width": DATE_WIDTH,
+    }
+
+
+def _config_for_hidden_field() -> dict[str, Any]:
+    """Get column configuration for fields that should be hidden."""
+    return {"show": False}
+
+
+def _config_for_standard_field(max_width: int | None = None) -> dict[str, Any]:
+    """Get column configuration for standard fields."""
+    return {
+        "show": True,
+        "no_wrap": True,
+        "overflow": "ellipsis",
+        "max_width": max_width,
+    }
+
+
+def _config_for_budget_period(terminal_width: int) -> dict[str, Any]:
+    """Get column configuration for budget period timestamps."""
+    return {
+        "show": terminal_width >= TERMINAL_WIDTH_WIDE,
+        "no_wrap": True,
+        "overflow": "ellipsis",
+        "max_width": 20,
+    }
+
+
 def _get_column_config(header: str, terminal_width: int) -> dict[str, Any]:
     """Get column configuration for a given header.
 
@@ -203,146 +307,50 @@ def _get_column_config(header: str, terminal_width: int) -> dict[str, Any]:
     """
     # Name: always show first, never wrap, reasonable width
     if header == "name":
-        return {
-            "show": True,
-            "no_wrap": True,
-            "overflow": "ellipsis",
-            "max_width": 20,
-        }
+        return _config_for_name_column()
 
     # ID: show with smart truncation (beginning + end of UUID)
     if header == "id":
-        # Show truncated ID in narrow terminals, full in wide ones
-        if terminal_width < 100:
-            id_width = 13  # Show first 8 and last 4 chars with ellipsis: "5f1e9b62…edd8"
-        elif terminal_width < 120:
-            id_width = 20
-        else:
-            id_width = 36  # Full UUID
-        return {
-            "show": True,
-            "no_wrap": True,
-            "overflow": "ellipsis",
-            "max_width": id_width,
-        }
+        return _config_for_id_column(terminal_width)
 
     # Description: allow wrapping on multiple lines with generous width
     if header == "description":
-        # Calculate based on what's left after other columns
-        # name(20) + id(13) + created_at(19) + borders/padding(12) = ~64
-        # For 80 col terminal, description gets remaining ~16 cols, but let's be more generous
-        if terminal_width < 100:
-            # In narrow terminals, more space for description now
-            desc_width = 35
-        elif terminal_width < 120:
-            desc_width = 45
-        else:
-            desc_width = 60
-        return {
-            "show": True,
-            "no_wrap": False,
-            "overflow": "fold",
-            "max_width": desc_width,
-        }
+        return _config_for_description_column(terminal_width)
 
-    # Timestamps: show created always, hide updated in narrow terminals
-    # Note: dates are transformed from created_at -> created, updated_at -> updated
-    if header in ["created_at", "created"]:
-        return {
-            "show": True,
-            "no_wrap": True,
-            "overflow": "ellipsis",
-            "max_width": 15,  # Show formatted date: "Feb 23, 2026"
-        }
+    # Date fields: show created always, hide updated in narrow terminals
+    if header in ["created_at", "created", "updated_at", "updated"]:
+        return _config_for_date_column(header, terminal_width)
 
-    if header in ["updated_at", "updated"]:
-        # Hide in narrow terminals to save space
-        return {
-            "show": terminal_width >= 120,
-            "no_wrap": True,
-            "overflow": "ellipsis",
-            "max_width": 15,
-        }
+    # Hidden fields: technical or internal fields
+    if header in ["encryption_key", "project_id", "encrypted_key", "is_archived"]:
+        return _config_for_hidden_field()
 
-    # encryption_key: never needed for display
-    if header == "encryption_key":
-        return {"show": False}
-
-    # Provider key specific fields (hide technical fields)
-    if header in ["project_id", "encrypted_key", "is_archived"]:
-        return {"show": False}
-
-    # Provider: always show
-    if header == "provider":
-        return {
-            "show": True,
-            "no_wrap": True,
-            "overflow": "ellipsis",
-            "max_width": 20,
-        }
-
-    # Archived status: show as Yes/No
-    if header == "archived":
-        return {
-            "show": True,
-            "no_wrap": True,
-            "overflow": "ellipsis",
-            "max_width": 10,
-        }
-
-    # Budget fields (for budget list command)
-    if header in ["budget_limit", "current_spend", "spend_period"]:
-        return {
-            "show": True,
-            "no_wrap": True,
-            "overflow": "ellipsis",
-            "max_width": 15,
-        }
-
-    # Period timestamps (for budget list)
+    # Budget period timestamps: hide in narrow terminals
     if header in ["period_start", "period_end"]:
-        # Hide these in narrow terminals as they're less critical
-        return {
-            "show": terminal_width >= 140,
-            "no_wrap": True,
-            "overflow": "ellipsis",
-            "max_width": 20,
-        }
+        return _config_for_budget_period(terminal_width)
 
-    # Budget: show if available (for provider key budget column)
-    if header == "budget":
-        return {
-            "show": True,
-            "no_wrap": True,
-            "overflow": "ellipsis",
-            "max_width": 20,
-        }
+    # Standard fields with specific widths
+    if header == "provider":
+        return _config_for_standard_field(20)
+    if header == "archived":
+        return _config_for_standard_field(10)
+    if header in ["budget_limit", "current_spend", "spend_period"]:
+        return _config_for_standard_field(15)
+    if header in ["budget", "last_used_at", "last_used"]:
+        return _config_for_standard_field(20)
 
-    # Last used: show if available
-    if header in ["last_used_at", "last_used"]:
-        return {
-            "show": True,
-            "no_wrap": True,
-            "overflow": "ellipsis",
-            "max_width": 20,
-        }
+    # Default: show with reasonable defaults
+    return _config_for_standard_field(None)
 
-    # Created: human-readable date
-    if header == "created":
-        return {
-            "show": True,
-            "no_wrap": True,
-            "overflow": "ellipsis",
-            "max_width": 15,
-        }
 
-    # Other fields: show with reasonable defaults
-    return {
-        "show": True,
-        "no_wrap": True,
-        "overflow": "ellipsis",
-        "max_width": None,  # Natural width
-    }
+def _is_provider_key_data(items: list[dict]) -> bool:
+    """Check if data represents provider key response."""
+    return bool(items) and "provider" in items[0] and "encrypted_key" in items[0]
+
+
+def _is_list_response(data: dict) -> bool:
+    """Check if data is a list response with 'data' field."""
+    return "data" in data and isinstance(data["data"], list)
 
 
 def _format_table(data: Any) -> None:
@@ -354,14 +362,13 @@ def _format_table(data: Any) -> None:
     """
     if isinstance(data, dict):
         # Check if it's a response with 'data' and 'count' (list endpoints)
-        if "data" in data and isinstance(data["data"], list):
+        if _is_list_response(data):
             items = data["data"]
             if items:
-                # Check if this is provider key data and transform it for display
-                if items and "provider" in items[0] and "encrypted_key" in items[0]:
+                # Transform data based on type
+                if _is_provider_key_data(items):
                     items = _transform_provider_key_data(items)
                 else:
-                    # For all other data types, transform dates to human-readable format
                     items = _transform_dates_in_data(items)
 
                 # Create rich table with optimized column display
@@ -825,7 +832,9 @@ def key_generate(ctx: click.Context, project_id: str, old_key: str | None, yes: 
 
         if provider_keys:
             click.echo("")
-            click.echo(f"Migrating provider keys for project: {project['name']} ({project_id[:8]}...)")
+            click.echo(
+                f"Migrating provider keys for project: {project['name']} ({project_id[:PROJECT_ID_DISPLAY_LENGTH]}...)"
+            )
             click.echo("")
             click.echo(f"Found {len(provider_keys)} provider key(s) to process:")
             for pk in provider_keys:
