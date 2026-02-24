@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "skills": {
+    "friendly-python": {
+      "source": "PsiACE/skills",
+      "sourceType": "github",
+      "computedHash": "91a056f754bac9a7a3e8926e6863cd44dab412e0a73ad3450e23d66478355566"  // pragma: allowlist secret
+    },
+    "piglet": {
+      "source": "PsiACE/skills",
+      "sourceType": "github",
+      "computedHash": "a7adc8efc1fb003644573b886f7405e97e5d8c94a11bb2d607693f93e7cc6a86"  // pragma: allowlist secret
+    }
+  }
+}

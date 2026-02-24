@@ -8,12 +8,17 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 import httpx
+import nacl.public
 
 from .client_management import ManagementMixin
 from .crypto import decrypt_data, extract_public_key, load_private_key, parse_any_llm_key
 from .exceptions import ChallengeCreationError, ProviderKeyFetchError
 
 logger = logging.getLogger(__name__)
+
+# Token expiry configuration
+# JWT tokens last 24 hours, but we refresh 1 hour early to avoid expiry during operations
+TOKEN_EXPIRY_SAFETY_MARGIN_HOURS = 23
 
 
 @dataclass
@@ -180,7 +185,7 @@ class AnyLLMPlatformClient(ManagementMixin):
         logger.debug("✅ Challenge created (%.2fms)", elapsed_ms)
         return response.json()
 
-    def solve_challenge(self, encrypted_challenge: str, private_key: object) -> uuid.UUID:
+    def solve_challenge(self, encrypted_challenge: str, private_key: nacl.public.PrivateKey) -> uuid.UUID:
         """Decrypt and solve the authentication challenge.
 
         Args:
@@ -232,7 +237,7 @@ class AnyLLMPlatformClient(ManagementMixin):
 
         # Store token and set expiration (24 hours minus 1 hour safety margin)
         self.access_token = access_token
-        self.token_expires_at = datetime.now() + timedelta(hours=23)
+        self.token_expires_at = datetime.now() + timedelta(hours=TOKEN_EXPIRY_SAFETY_MARGIN_HOURS)
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
         logger.debug("✅ Access token obtained (%.2fms)", elapsed_ms)
@@ -270,7 +275,7 @@ class AnyLLMPlatformClient(ManagementMixin):
 
         # Store token and set expiration (24 hours minus 1 hour safety margin)
         self.access_token = access_token
-        self.token_expires_at = datetime.now() + timedelta(hours=23)
+        self.token_expires_at = datetime.now() + timedelta(hours=TOKEN_EXPIRY_SAFETY_MARGIN_HOURS)
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
         logger.debug("✅ Access token obtained (%.2fms)", elapsed_ms)
@@ -476,7 +481,7 @@ class AnyLLMPlatformClient(ManagementMixin):
         logger.debug("✅ Provider key fetched (%.2fms)", elapsed_ms)
         return data
 
-    def decrypt_provider_key_value(self, encrypted_key: str, private_key: object) -> str:
+    def decrypt_provider_key_value(self, encrypted_key: str, private_key: nacl.public.PrivateKey) -> str:
         """Decrypt the provider API key.
 
         Args:

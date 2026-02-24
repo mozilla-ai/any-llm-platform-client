@@ -39,8 +39,7 @@ __all__ = [
     "extract_public_key",
     "decrypt_data",
     # Client classes
-    "AnyLLMPlatformClient",  # For decryption with challenge-response
-    "AnyLLMPlatformAPIClient",  # For full API CRUD operations
+    "AnyLLMPlatformClient",  # For decryption and management via ManagementMixin
     "DecryptedProviderKey",  # Dataclass for decrypted provider key with metadata
     # Exceptions
     "ChallengeCreationError",
