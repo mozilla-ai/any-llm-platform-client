@@ -29,7 +29,7 @@ def test_client_import():
 
     # Should be able to instantiate
     client = AnyLLMPlatformClient()
-    assert client.any_llm_platform_url == "http://localhost:8000/api/v1"
+    assert client.any_llm_platform_url == "https://platform-api.any-llm.ai/api/v1"
 
 
 def test_decrypted_provider_key_import():

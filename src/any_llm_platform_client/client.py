@@ -126,11 +126,11 @@ class AnyLLMPlatformClient(ManagementMixin):
 
         Args:
             any_llm_platform_url: Base URL for the ANY LLM platform API.
-                Defaults to "http://localhost:8000/api/v1" if not provided.
+                Defaults to "https://platform-api.any-llm.ai/api/v1" if not provided.
             client_name: Optional client name to identify this client to the platform.
                 Used for budget enforcement and usage tracking.
         """
-        self.any_llm_platform_url = any_llm_platform_url or "http://localhost:8000/api/v1"
+        self.any_llm_platform_url = any_llm_platform_url or "https://platform-api.any-llm.ai/api/v1"
         self.client_name = client_name
         self.access_token: str | None = None
         self.token_expires_at: datetime | None = None

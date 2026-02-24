@@ -12,7 +12,7 @@ from any_llm_platform_client import AnyLLMPlatformClient, ChallengeCreationError
 def test_client_default_url():
     """Test that client uses default URL when none provided."""
     client = AnyLLMPlatformClient()
-    assert client.any_llm_platform_url == "http://localhost:8000/api/v1"
+    assert client.any_llm_platform_url == "https://platform-api.any-llm.ai/api/v1"
 
 
 def test_client_custom_url():
