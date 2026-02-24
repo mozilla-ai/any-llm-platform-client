@@ -16,6 +16,10 @@ from .exceptions import ChallengeCreationError, ProviderKeyFetchError
 
 logger = logging.getLogger(__name__)
 
+# Token expiry configuration
+# JWT tokens last 24 hours, but we refresh 1 hour early to avoid expiry during operations
+TOKEN_EXPIRY_SAFETY_MARGIN_HOURS = 23
+
 
 @dataclass
 class DecryptedProviderKey:
@@ -233,7 +237,7 @@ class AnyLLMPlatformClient(ManagementMixin):
 
         # Store token and set expiration (24 hours minus 1 hour safety margin)
         self.access_token = access_token
-        self.token_expires_at = datetime.now() + timedelta(hours=23)
+        self.token_expires_at = datetime.now() + timedelta(hours=TOKEN_EXPIRY_SAFETY_MARGIN_HOURS)
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
         logger.debug("✅ Access token obtained (%.2fms)", elapsed_ms)
@@ -271,7 +275,7 @@ class AnyLLMPlatformClient(ManagementMixin):
 
         # Store token and set expiration (24 hours minus 1 hour safety margin)
         self.access_token = access_token
-        self.token_expires_at = datetime.now() + timedelta(hours=23)
+        self.token_expires_at = datetime.now() + timedelta(hours=TOKEN_EXPIRY_SAFETY_MARGIN_HOURS)
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
         logger.debug("✅ Access token obtained (%.2fms)", elapsed_ms)

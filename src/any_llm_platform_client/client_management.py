@@ -9,6 +9,9 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+# Token expiry configuration
+TOKEN_EXPIRY_SAFETY_MARGIN_HOURS = 23
+
 
 class AuthenticationError(Exception):
     """Exception raised for authentication failures."""
@@ -81,7 +84,7 @@ class ManagementMixin:
 
         # Store token and set expiration (24 hours minus 1 hour safety margin)
         self.access_token = access_token
-        self.token_expires_at = datetime.now() + timedelta(hours=23)
+        self.token_expires_at = datetime.now() + timedelta(hours=TOKEN_EXPIRY_SAFETY_MARGIN_HOURS)
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
         logger.debug("✅ Login successful (%.2fms)", elapsed_ms)
