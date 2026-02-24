@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 
 import httpx
 
+from .client_management import ManagementMixin
 from .crypto import decrypt_data, extract_public_key, load_private_key, parse_any_llm_key
 from .exceptions import ChallengeCreationError, ProviderKeyFetchError
 
@@ -36,14 +37,52 @@ class DecryptedProviderKey:
     updated_at: datetime | None = None
 
 
+@dataclass
+class KeyRotationResult:
+    """Result of rotating a single provider key.
+
+    Attributes:
+        provider_key_id: Unique identifier for the provider key
+        provider: Provider name (e.g., "openai", "anthropic")
+        status: Status of the rotation: "migrated", "skipped", "archived", "failed"
+        error: Optional error message if status is "failed" or "archived"
+    """
+
+    provider_key_id: str
+    provider: str
+    status: str
+    error: str | None = None
+
+
+@dataclass
+class KeyRotationSummary:
+    """Summary of key rotation operation.
+
+    Attributes:
+        total: Total number of provider keys processed
+        migrated: Number of keys successfully migrated
+        skipped: Number of keys skipped (e.g., local providers with empty keys)
+        archived: Number of keys archived due to decryption failure
+        failed: Number of keys that failed to update via API
+        results: List of individual rotation results for each provider key
+    """
+
+    total: int
+    migrated: int
+    skipped: int
+    archived: int
+    failed: int
+    results: list[KeyRotationResult]
+
+
 def _handle_challenge_error(response: httpx.Response) -> None:
     """Handle error response from challenge creation."""
-    logger.error("❌ Error creating challenge: %s", response.status_code)
+    logger.error("Error creating challenge: %s", response.status_code)
     try:
         response_json = response.json()
         logger.debug(response_json)
         if "No project found" in str(response_json):
-            logger.warning("\n⚠️  The public key from your ANY_LLM_KEY doesn't match any project.")
+            logger.warning("\nThe public key from your ANY_LLM_KEY doesn't match any project.")
             logger.warning("Solution: Go to your project page and generate a new API key.")
             raise ChallengeCreationError("No project found for the provided public key")
     except ValueError:
@@ -53,7 +92,7 @@ def _handle_challenge_error(response: httpx.Response) -> None:
 
 def _handle_provider_key_error(response: httpx.Response) -> None:
     """Handle error response from provider key fetch."""
-    logger.error("❌ Error fetching provider key: %s", response.status_code)
+    logger.error("Error fetching provider key: %s", response.status_code)
     detail = None
     try:
         response_json = response.json()
@@ -64,7 +103,7 @@ def _handle_provider_key_error(response: httpx.Response) -> None:
     raise ProviderKeyFetchError(f"Failed to fetch provider key (status: {response.status_code}, detail: {detail})")
 
 
-class AnyLLMPlatformClient:
+class AnyLLMPlatformClient(ManagementMixin):
     """Client for communicating with the ANY LLM backend.
 
     This class encapsulates the any llm platfrom url and provides methods for the
@@ -73,6 +112,8 @@ class AnyLLMPlatformClient:
     Both synchronous and asynchronous methods are provided:
     - Sync: create_challenge, fetch_provider_key
     - Async: acreate_challenge, afetch_provider_key
+
+    Also includes management methods via ManagementMixin for projects, providers, budgets, and clients.
     """
 
     def __init__(self, any_llm_platform_url: str | None = None, client_name: str | None = None) -> None:
@@ -98,7 +139,7 @@ class AnyLLMPlatformClient:
         Returns:
             Dictionary containing the encrypted challenge from the server.
         """
-        logger.info("📝 Creating authentication challenge...")
+        logger.debug("📝 Creating authentication challenge...")
         start_time = time.perf_counter()
 
         with httpx.Client() as client:
@@ -111,7 +152,7 @@ class AnyLLMPlatformClient:
             _handle_challenge_error(response)
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
-        logger.info("✅ Challenge created (%.2fms)", elapsed_ms)
+        logger.debug("✅ Challenge created (%.2fms)", elapsed_ms)
         return response.json()
 
     async def acreate_challenge(self, public_key: str) -> dict:
@@ -123,7 +164,7 @@ class AnyLLMPlatformClient:
         Returns:
             Dictionary containing the encrypted challenge from the server.
         """
-        logger.info("📝 Creating authentication challenge...")
+        logger.debug("📝 Creating authentication challenge...")
         start_time = time.perf_counter()
 
         async with httpx.AsyncClient() as client:
@@ -136,7 +177,7 @@ class AnyLLMPlatformClient:
             _handle_challenge_error(response)
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
-        logger.info("✅ Challenge created (%.2fms)", elapsed_ms)
+        logger.debug("✅ Challenge created (%.2fms)", elapsed_ms)
         return response.json()
 
     def solve_challenge(self, encrypted_challenge: str, private_key: object) -> uuid.UUID:
@@ -149,14 +190,14 @@ class AnyLLMPlatformClient:
         Returns:
             UUID representing the solved challenge.
         """
-        logger.info("🔐 Decrypting challenge...")
+        logger.debug("🔐 Decrypting challenge...")
         start_time = time.perf_counter()
 
         decrypted_uuid_str = decrypt_data(encrypted_challenge, private_key)
         solved_challenge = uuid.UUID(decrypted_uuid_str)
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
-        logger.info("✅ Challenge solved: %s (%.2fms)", solved_challenge, elapsed_ms)
+        logger.debug("✅ Challenge solved: %s (%.2fms)", solved_challenge, elapsed_ms)
         return solved_challenge
 
     def request_access_token(self, solved_challenge: uuid.UUID) -> str:
@@ -171,7 +212,7 @@ class AnyLLMPlatformClient:
         Raises:
             ChallengeCreationError: If token request fails.
         """
-        logger.info("🎫 Requesting access token...")
+        logger.debug("🎫 Requesting access token...")
         start_time = time.perf_counter()
 
         with httpx.Client() as client:
@@ -194,7 +235,7 @@ class AnyLLMPlatformClient:
         self.token_expires_at = datetime.now() + timedelta(hours=23)
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
-        logger.info("✅ Access token obtained (%.2fms)", elapsed_ms)
+        logger.debug("✅ Access token obtained (%.2fms)", elapsed_ms)
         return access_token
 
     async def arequest_access_token(self, solved_challenge: uuid.UUID) -> str:
@@ -209,7 +250,7 @@ class AnyLLMPlatformClient:
         Raises:
             ChallengeCreationError: If token request fails.
         """
-        logger.info("🎫 Requesting access token...")
+        logger.debug("🎫 Requesting access token...")
         start_time = time.perf_counter()
 
         async with httpx.AsyncClient() as client:
@@ -232,7 +273,7 @@ class AnyLLMPlatformClient:
         self.token_expires_at = datetime.now() + timedelta(hours=23)
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
-        logger.info("✅ Access token obtained (%.2fms)", elapsed_ms)
+        logger.debug("✅ Access token obtained (%.2fms)", elapsed_ms)
         return access_token
 
     def refresh_access_token(self, any_llm_key: str) -> str:
@@ -259,7 +300,7 @@ class AnyLLMPlatformClient:
             >>> # Use the new token
             >>> client.fetch_provider_key("openai", new_token)
         """
-        logger.info("🔄 Refreshing access token...")
+        logger.debug("🔄 Refreshing access token...")
         start_time = time.perf_counter()
 
         # Parse the ANY_LLM_KEY
@@ -279,7 +320,7 @@ class AnyLLMPlatformClient:
         token = self.request_access_token(solved_challenge)
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
-        logger.info("✅ Token refresh complete (total: %.2fms)", elapsed_ms)
+        logger.debug("✅ Token refresh complete (total: %.2fms)", elapsed_ms)
         return token
 
     async def arefresh_access_token(self, any_llm_key: str) -> str:
@@ -306,7 +347,7 @@ class AnyLLMPlatformClient:
             >>> # Use the new token
             >>> await client.afetch_provider_key("openai", new_token)
         """
-        logger.info("🔄 Refreshing access token...")
+        logger.debug("🔄 Refreshing access token...")
         start_time = time.perf_counter()
 
         # Parse the ANY_LLM_KEY
@@ -326,7 +367,7 @@ class AnyLLMPlatformClient:
         token = await self.arequest_access_token(solved_challenge)
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
-        logger.info("✅ Token refresh complete (total: %.2fms)", elapsed_ms)
+        logger.debug("✅ Token refresh complete (total: %.2fms)", elapsed_ms)
         return token
 
     def _ensure_valid_token(self, any_llm_key: str) -> str:
@@ -383,7 +424,7 @@ class AnyLLMPlatformClient:
         Returns:
             Dictionary containing the encrypted provider key and metadata.
         """
-        logger.info("🔑 Fetching provider key for %s...", provider)
+        logger.debug("🔑 Fetching provider key for %s...", provider)
         start_time = time.perf_counter()
 
         headers = {"Authorization": f"Bearer {access_token}"}
@@ -401,7 +442,7 @@ class AnyLLMPlatformClient:
 
         data = response.json()
         elapsed_ms = (time.perf_counter() - start_time) * 1000
-        logger.info("✅ Provider key fetched (%.2fms)", elapsed_ms)
+        logger.debug("✅ Provider key fetched (%.2fms)", elapsed_ms)
         return data
 
     async def afetch_provider_key(self, provider: str, access_token: str) -> dict:
@@ -414,7 +455,7 @@ class AnyLLMPlatformClient:
         Returns:
             Dictionary containing the encrypted provider key and metadata.
         """
-        logger.info("🔑 Fetching provider key for %s...", provider)
+        logger.debug("🔑 Fetching provider key for %s...", provider)
         start_time = time.perf_counter()
 
         headers = {"Authorization": f"Bearer {access_token}"}
@@ -432,7 +473,7 @@ class AnyLLMPlatformClient:
 
         data = response.json()
         elapsed_ms = (time.perf_counter() - start_time) * 1000
-        logger.info("✅ Provider key fetched (%.2fms)", elapsed_ms)
+        logger.debug("✅ Provider key fetched (%.2fms)", elapsed_ms)
         return data
 
     def decrypt_provider_key_value(self, encrypted_key: str, private_key: object) -> str:
@@ -445,13 +486,13 @@ class AnyLLMPlatformClient:
         Returns:
             The decrypted provider API key as a string.
         """
-        logger.info("🔓 Decrypting provider API key...")
+        logger.debug("🔓 Decrypting provider API key...")
         start_time = time.perf_counter()
 
         decrypted_key = decrypt_data(encrypted_key, private_key)
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
-        logger.info("✅ Decrypted successfully! (%.2fms)", elapsed_ms)
+        logger.debug("✅ Decrypted successfully! (%.2fms)", elapsed_ms)
         return decrypted_key
 
     def get_public_key(self, any_llm_key: str) -> str:

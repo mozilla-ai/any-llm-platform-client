@@ -6,6 +6,7 @@ Copied and renamed from the original package to keep API stable.
 import base64
 import hashlib
 import re
+import secrets
 from typing import NamedTuple
 
 try:
@@ -111,3 +112,89 @@ def decrypt_data(encrypted_data_base64: str, private_key: nacl.public.PrivateKey
     )
 
     return decrypted_data.decode("utf-8")
+
+
+def generate_keypair() -> tuple[nacl.public.PrivateKey, nacl.public.PublicKey]:
+    """Generate a new X25519 keypair.
+
+    Returns:
+        Tuple of (private_key, public_key) for cryptographic operations.
+    """
+    private_key = nacl.public.PrivateKey.generate()
+    public_key = private_key.public_key
+    return private_key, public_key
+
+
+def format_any_llm_key(private_key: nacl.public.PrivateKey) -> str:
+    """Format a private key as an ANY_LLM_KEY string.
+
+    Args:
+        private_key: X25519 private key object.
+
+    Returns:
+        Formatted ANY_LLM_KEY string: ANY.v1.<key_id>.<fingerprint>-<base64_key>
+    """
+    # Generate random 8-character hex key ID (4 bytes)
+    key_id = secrets.token_hex(4)
+
+    # Calculate fingerprint: SHA-256(public_key)[:4 bytes] as 8 hex chars
+    public_key_bytes = bytes(private_key.public_key)
+    fingerprint = hashlib.sha256(public_key_bytes).digest()[:4]
+    fingerprint_hex = fingerprint.hex()
+
+    # Encode private key as base64
+    private_key_bytes = bytes(private_key)
+    base64_encoded_private_key = base64.b64encode(private_key_bytes).decode("utf-8")
+
+    # Format as ANY.v1.<key_id>.<fingerprint>-<base64_key>
+    return f"ANY.v1.{key_id}.{fingerprint_hex}-{base64_encoded_private_key}"
+
+
+def encrypt_data(plaintext: str, public_key: nacl.public.PublicKey) -> str:
+    """Encrypt data using X25519 sealed box format.
+
+    This implements the same sealed box encryption format as used by the backend:
+    - Generate ephemeral keypair
+    - Perform ECDH with recipient's public key
+    - Derive nonce from SHA-512(ephemeral_public || recipient_public)[:24]
+    - Encrypt with XChaCha20-Poly1305 AEAD
+    - Return: ephemeral_public_key || ciphertext (base64-encoded)
+
+    Args:
+        plaintext: Data to encrypt (UTF-8 string).
+        public_key: X25519 public key of the recipient.
+
+    Returns:
+        Base64-encoded encrypted data (sealed box format).
+    """
+    # Generate ephemeral keypair
+    ephemeral_private_key = nacl.public.PrivateKey.generate()
+    ephemeral_public_key = bytes(ephemeral_private_key.public_key)
+
+    # Perform ECDH to get shared secret
+    recipient_public_key = bytes(public_key)
+    shared_secret = nacl.bindings.crypto_scalarmult(bytes(ephemeral_private_key), recipient_public_key)
+
+    # Derive nonce from SHA-512(ephemeral_public || recipient_public)[:24]
+    combined = ephemeral_public_key + recipient_public_key
+    nonce = hashlib.sha512(combined).digest()[:24]
+
+    # Encrypt plaintext with XChaCha20-Poly1305
+    plaintext_bytes = plaintext.encode("utf-8")
+    ciphertext = nacl.bindings.crypto_aead_xchacha20poly1305_ietf_encrypt(plaintext_bytes, None, nonce, shared_secret)
+
+    # Combine ephemeral public key + ciphertext and encode as base64
+    sealed_box = ephemeral_public_key + ciphertext
+    return base64.b64encode(sealed_box).decode("utf-8")
+
+
+def get_public_key_from_private(private_key: nacl.public.PrivateKey) -> nacl.public.PublicKey:
+    """Derive public key from private key.
+
+    Args:
+        private_key: X25519 private key object.
+
+    Returns:
+        Corresponding X25519 public key object.
+    """
+    return private_key.public_key
