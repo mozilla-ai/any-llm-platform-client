@@ -31,3 +31,17 @@ class ProviderKeyFetchError(Exception):
     The exception message will contain details about the specific failure,
     including the HTTP status code received from the server.
     """
+
+
+class OAuthError(Exception):
+    """Raised when OAuth authentication fails.
+
+    This exception is raised when OAuth authentication encounters an error, typically due to:
+    - User denying access
+    - OAuth provider errors (Google, GitHub, etc.)
+    - Network errors during OAuth flow
+    - Invalid OAuth configuration
+    - Timeout waiting for user authorization
+
+    The exception message will contain details about the specific failure.
+    """
