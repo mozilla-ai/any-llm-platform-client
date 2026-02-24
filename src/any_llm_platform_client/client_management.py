@@ -91,6 +91,24 @@ class ManagementMixin:
         logger.debug("✅ Login successful (%.2fms)", elapsed_ms)
         return access_token
 
+    def login_with_oauth_token(self, access_token: str) -> None:
+        """Set authentication using an OAuth access token.
+
+        This method stores an OAuth-obtained JWT token for use in API requests.
+        The token should be obtained through the OAuth flow using the oauth module.
+
+        Args:
+            access_token: JWT access token from OAuth flow
+
+        Note:
+            This method does not validate the token. It assumes the token
+            is valid and was obtained through proper OAuth authentication.
+        """
+        self.access_token = access_token
+        # OAuth tokens from backend have 24-hour expiry like password tokens
+        self.token_expires_at = datetime.now() + timedelta(hours=TOKEN_EXPIRY_SAFETY_MARGIN_HOURS)
+        logger.debug("✅ OAuth token set successfully")
+
     # ========== Project Management Methods ==========
 
     def list_projects(self, skip: int = 0, limit: int = 100) -> dict:

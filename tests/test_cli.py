@@ -7,8 +7,24 @@ from any_llm_platform_client.cli import cli
 
 
 @pytest.fixture
-def runner():
-    """Create a Click CLI test runner."""
+def isolated_config(tmp_path, monkeypatch):
+    """Isolate config directory for tests to prevent using user's actual config."""
+    config_dir = tmp_path / ".any-llm"
+    config_file = config_dir / "config.json"
+
+    # Monkey patch the config paths
+    monkeypatch.setattr("any_llm_platform_client.config.CONFIG_DIR", config_dir)
+    monkeypatch.setattr("any_llm_platform_client.config.CONFIG_FILE", config_file)
+
+    # Also patch the imports in cli module
+    monkeypatch.setattr("any_llm_platform_client.cli.get_oauth_token", lambda: None)
+
+    return config_dir, config_file
+
+
+@pytest.fixture
+def runner(isolated_config):  # noqa: ARG001 - fixture used for side effects
+    """Create a Click CLI test runner with isolated config."""
     return CliRunner()
 
 
@@ -75,14 +91,16 @@ def test_authentication_required_for_project_list(runner):
     """Test that authentication is required for project list."""
     result = runner.invoke(cli, ["project", "list"])
     assert result.exit_code == 1
-    assert "Error: Username and password required" in result.output
+    assert "Error: Not authenticated" in result.output
+    assert "any-llm auth login" in result.output
 
 
 def test_authentication_required_for_key_list(runner):
     """Test that authentication is required for key list."""
     result = runner.invoke(cli, ["key", "list", "some-project-id"])
     assert result.exit_code == 1
-    assert "Error: Username and password required" in result.output
+    assert "Error: Not authenticated" in result.output
+    assert "ANY_LLM_USERNAME and ANY_LLM_PASSWORD" in result.output
 
 
 def test_key_decrypt_help(runner):

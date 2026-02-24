@@ -17,6 +17,56 @@ uv run any-llm --help
 
 ## Authentication
 
+The CLI supports three authentication methods for management commands:
+
+### OAuth Authentication (Recommended)
+
+OAuth provides the most secure authentication using Google or GitHub:
+
+```bash
+# Authenticate with Google or GitHub
+any-llm auth login --provider google
+any-llm auth login --provider github
+
+# Check authentication status
+any-llm auth status
+
+# Logout
+any-llm auth logout
+```
+
+**Benefits:**
+- No password storage required
+- Can be revoked from Google/GitHub
+- Supports 2FA automatically
+- Credentials stored securely in `~/.any-llm/config.json` (0600 permissions)
+
+**Manual Flow (Production Backend):**
+
+When using the production backend at `https://platform-api.any-llm.ai`, you'll need to use a manual copy-paste flow:
+
+1. Run `any-llm auth login --provider google`
+2. Browser opens for authentication
+3. **Press ESC immediately** when redirected (before page loads)
+4. Copy the URL from the address bar
+5. Paste it into the CLI prompt
+
+**Troubleshooting:**
+
+- **"Invalid authorization code"**: The page loaded before you copied the URL. Try again and press ESC faster.
+- **"Code expired"**: You took more than 60 seconds. Complete the flow faster.
+- **"Could not find 'code' parameter"**: Copy the complete URL including all parameters.
+
+**Setting the Backend URL:**
+
+```bash
+# Set environment variable
+export ANY_LLM_PLATFORM_URL=https://platform-api.any-llm.ai/api/v1
+
+# Or add to ~/.bashrc or ~/.zshrc
+echo 'export ANY_LLM_PLATFORM_URL=https://platform-api.any-llm.ai/api/v1' >> ~/.zshrc
+```
+
 ### Environment Variables
 
 Set credentials for management commands:
@@ -24,7 +74,7 @@ Set credentials for management commands:
 ```bash
 export ANY_LLM_USERNAME="your-email@example.com"
 export ANY_LLM_PASSWORD="your-password"  # pragma: allowlist secret
-export ANY_LLM_PLATFORM_URL="http://localhost:8000/api/v1"  # optional
+export ANY_LLM_PLATFORM_URL="https://platform-api.any-llm.ai/api/v1"  # optional, this is the default
 
 # For decryption operations
 export ANY_LLM_KEY='ANY.v1.<kid>.<fingerprint>-<base64_key>'
@@ -40,12 +90,20 @@ any-llm --username user@example.com --password mypass project list
 any-llm --any-llm-platform-url http://localhost:8100/api/v1 project list
 ```
 
+### Authentication Priority
+
+The CLI tries authentication methods in this order:
+1. OAuth token from `~/.any-llm/config.json` (if not expired)
+2. Username/password from environment variables
+3. Username/password from command-line options
+
 ## Command Structure
 
 ```bash
 any-llm [OPTIONS] COMMAND [ARGS]...
 
 Commands:
+  auth     Manage authentication (OAuth)
   project  Manage projects
   key      Manage provider keys and decrypt API keys
   budget   Manage project budgets
@@ -445,13 +503,19 @@ any-llm project delete "$PROJECT_ID" --yes
 ### Authentication Errors
 
 ```bash
-# Missing credentials
+# Not authenticated
 any-llm project list
-# Error: Username and password required
+# Error: Not authenticated
 
-# Solution: Set environment variables or use options
+# Solution 1: Use OAuth (recommended)
+any-llm auth login --provider google
+
+# Solution 2: Set environment variables
 export ANY_LLM_USERNAME="user@example.com"
 export ANY_LLM_PASSWORD="password"  # pragma: allowlist secret
+
+# Solution 3: Pass credentials as options
+any-llm --username user@example.com --password mypass project list
 ```
 
 ### Connection Errors

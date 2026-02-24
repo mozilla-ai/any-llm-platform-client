@@ -7,6 +7,7 @@ import sys
 from typing import Any
 
 import click
+import httpx
 import yaml
 from rich import box
 from rich.console import Console
@@ -14,6 +15,7 @@ from rich.table import Table
 
 from .client import AnyLLMPlatformClient
 from .client_management import AuthenticationError
+from .config import clear_oauth_token, get_oauth_token, save_oauth_token
 from .crypto import (
     encrypt_data,
     extract_public_key,
@@ -22,7 +24,8 @@ from .crypto import (
     load_private_key,
     parse_any_llm_key,
 )
-from .exceptions import ChallengeCreationError, ProviderKeyFetchError
+from .exceptions import ChallengeCreationError, OAuthError, ProviderKeyFetchError
+from .oauth import OAuthProvider, get_available_providers, run_oauth_flow
 
 logger = logging.getLogger(__name__)
 # Console that adapts to terminal width
@@ -77,21 +80,36 @@ def _run_decryption(provider: str, any_llm_key: str, client: AnyLLMPlatformClien
 
 
 def get_authenticated_client(ctx: click.Context) -> AnyLLMPlatformClient:
-    """Get or create an authenticated client for management commands."""
+    """Get or create an authenticated client for management commands.
+
+    This function tries authentication methods in the following order:
+    1. OAuth token from config file (if available and not expired)
+    2. Username/password from environment variables or CLI options
+    """
     if "client" not in ctx.obj:
-        # Get credentials
+        any_llm_platform_url = ctx.obj.get("any_llm_platform_url") or os.environ.get("ANY_LLM_PLATFORM_URL")
+        client = AnyLLMPlatformClient(any_llm_platform_url)
+
+        # Try OAuth token first
+        oauth_token = get_oauth_token()
+        if oauth_token:
+            logger.debug("Using OAuth token for provider: %s", oauth_token.provider)
+            client.login_with_oauth_token(oauth_token.access_token)
+            ctx.obj["client"] = client
+            return client
+
+        # Fall back to username/password
         username = ctx.obj.get("username") or os.environ.get("ANY_LLM_USERNAME")
         password = ctx.obj.get("password") or os.environ.get("ANY_LLM_PASSWORD")
 
         if not username or not password:
-            click.echo("Error: Username and password required for management commands", err=True)
-            click.echo("Set ANY_LLM_USERNAME and ANY_LLM_PASSWORD environment variables", err=True)
-            click.echo("Or use --username and --password options", err=True)
+            click.echo("Error: Not authenticated", err=True)
+            click.echo("", err=True)
+            click.echo("Please authenticate using one of the following methods:", err=True)
+            click.echo("  1. Run 'any-llm auth login' to authenticate with OAuth", err=True)
+            click.echo("  2. Set ANY_LLM_USERNAME and ANY_LLM_PASSWORD environment variables", err=True)
+            click.echo("  3. Use --username and --password options", err=True)
             sys.exit(1)
-
-        # Create and authenticate client
-        any_llm_platform_url = ctx.obj.get("any_llm_platform_url") or os.environ.get("ANY_LLM_PLATFORM_URL")
-        client = AnyLLMPlatformClient(any_llm_platform_url)
 
         try:
             client.login(username, password)
@@ -1137,6 +1155,375 @@ def client_set_default(ctx: click.Context, project_id: str, client_id: str) -> N
         format_output(result, ctx.obj["output_format"])
     except Exception as e:
         handle_error(e, "set default client")
+
+
+# ========== Auth Commands ==========
+
+
+@cli.group()
+def auth() -> None:
+    """Manage authentication."""
+    pass
+
+
+@auth.command("login")
+@click.option("--provider", type=click.Choice(["google", "github"]), help="OAuth provider to use")
+@click.pass_context
+def auth_login(ctx: click.Context, provider: str | None) -> None:
+    """Authenticate with OAuth.
+
+    Opens your browser for authentication with Google or GitHub.
+    Credentials are stored in ~/.any-llm/config.json for future use.
+    """
+    try:
+        any_llm_platform_url = ctx.obj.get("any_llm_platform_url") or os.environ.get("ANY_LLM_PLATFORM_URL")
+        if not any_llm_platform_url:
+            any_llm_platform_url = "https://platform-api.any-llm.ai/api/v1"
+
+        # If no provider specified, show available providers
+        if not provider:
+            click.echo("Fetching available authentication providers...")
+            try:
+                providers = get_available_providers(any_llm_platform_url)
+
+                if not providers:
+                    click.echo("Error: No OAuth providers are enabled on the backend", err=True)
+                    click.echo(
+                        "Please configure OAuth providers in the backend or use username/password authentication",
+                        err=True,
+                    )
+                    sys.exit(1)
+
+                click.echo("")
+                click.echo("Available authentication providers:")
+                for i, p in enumerate(providers, 1):
+                    display_name = p.get("display_name", p.get("name", "Unknown"))
+                    click.echo(f"  {i}. {display_name}")
+
+                click.echo("")
+                choice = click.prompt(
+                    "Select provider",
+                    type=click.IntRange(1, len(providers)),
+                    default=1,
+                )
+
+                provider = providers[choice - 1]["name"]
+
+            except OAuthError as e:
+                click.echo(f"Error: Failed to fetch providers - {e}", err=True)
+                sys.exit(1)
+
+        # At this point, provider is guaranteed to be a non-empty string
+        # (either from --provider option or from user selection above)
+        assert provider is not None, "Provider must be set by CLI option or user selection"
+        oauth_provider = OAuthProvider(provider)
+
+        click.echo("")
+        click.echo(f"Authenticating with {provider.title()}...")
+        click.echo("")
+
+        # Try to use automatic flow first (with localhost redirect_uri)
+        # If backend doesn't support it, fall back to manual flow
+        from urllib.parse import parse_qs, urlparse
+
+        # Check if backend supports CLI OAuth (localhost redirect_uri)
+        supports_cli_oauth = False
+        temp_client = None
+
+        try:
+            # Try requesting with localhost redirect_uri
+            temp_client = httpx.Client()
+            test_redirect_uri = "http://localhost:8080/callback"
+            auth_response = temp_client.get(
+                f"{any_llm_platform_url}/oauth/{provider}/authorize",
+                params={"redirect_uri": test_redirect_uri},
+                timeout=10.0,
+            )
+
+            # If backend accepts localhost redirect_uri, use automatic flow
+            if auth_response.status_code == 200:
+                auth_data = auth_response.json()
+                auth_url = auth_data.get("authorization_url", "")
+
+                # Verify the returned auth_url contains localhost redirect
+                parsed = urlparse(auth_url)
+                query_params = parse_qs(parsed.query)
+                returned_redirect_uri = query_params.get("redirect_uri", [""])[0]
+
+                is_localhost = "localhost" in returned_redirect_uri or "127.0.0.1" in returned_redirect_uri
+
+                if is_localhost:
+                    # Backend supports CLI OAuth! Use automatic flow
+                    supports_cli_oauth = True
+                    click.echo("✓ Backend supports CLI OAuth")
+                    click.echo("")
+        except Exception:
+            # Backend doesn't support CLI OAuth with localhost
+            supports_cli_oauth = False
+        finally:
+            # Always clean up temp_client
+            if temp_client is not None:
+                from contextlib import suppress
+
+                with suppress(Exception):
+                    temp_client.close()
+
+        # If backend doesn't support CLI OAuth, use manual flow
+        if not supports_cli_oauth:
+            # Get the web redirect_uri to show user
+            auth_url = ""
+            web_redirect_uri = ""
+            with httpx.Client() as temp_client:
+                try:
+                    auth_response = temp_client.get(f"{any_llm_platform_url}/oauth/{provider}/authorize", timeout=10.0)
+                    auth_response.raise_for_status()
+                    auth_data = auth_response.json()
+                    auth_url = auth_data.get("authorization_url", "")
+
+                    # Extract redirect_uri from the auth URL
+                    parsed = urlparse(auth_url)
+                    query_params = parse_qs(parsed.query)
+                    web_redirect_uri = query_params.get("redirect_uri", [""])[0]
+                except Exception:
+                    auth_url = ""
+                    web_redirect_uri = ""
+
+            if auth_url:  # We got the authorization URL, use manual flow
+                # Backend OAuth is configured for web frontend, use manual flow
+                click.echo("⚠️  Backend OAuth is configured for web frontend.")
+                click.echo("Using manual authentication flow...")
+                click.echo("")
+                click.echo("IMPORTANT: You need to copy the URL BEFORE the page loads!")
+                click.echo("")
+                click.echo("Please follow these steps:")
+                click.echo("")
+                click.echo("1. Opening browser for authentication...")
+                click.echo("2. After you authenticate with Google/GitHub:")
+                click.echo("")
+                click.echo("   ⚠️  QUICKLY stop the page from loading (press ESC or click X)")
+                click.echo("   ⚠️  Or right-click the address bar and 'Copy URL' immediately")
+                click.echo("")
+                click.echo("3. The URL will look like:")
+                click.echo("   https://any-llm.ai/auth/google/callback?state=...&code=XXXXX&...")
+                click.echo("")
+                click.echo("4. Copy the FULL URL and paste it below")
+                click.echo("")
+
+                # Open browser
+                import webbrowser
+
+                webbrowser.open(auth_url)
+
+                click.echo("Press Enter when ready, then paste the URL...")
+                click.pause()
+
+                # Ask user to paste the full URL
+                callback_url = click.prompt("Paste the full callback URL here", type=str).strip()
+
+                # Extract code and state from URL
+                code = ""
+                state = ""
+                try:
+                    parsed = urlparse(callback_url)
+                    query_params = parse_qs(parsed.query)
+                    code = query_params.get("code", [""])[0]
+                    state = query_params.get("state", [""])[0]
+
+                    if not code:
+                        click.echo("Error: Could not find 'code' parameter in URL", err=True)
+                        click.echo("Make sure you copied the complete URL with ?code=...", err=True)
+                        sys.exit(1)
+
+                    click.echo("✓ Extracted authorization code")
+                except Exception as e:
+                    click.echo(f"Error: Could not parse URL: {e}", err=True)
+                    sys.exit(1)
+
+                # Exchange code for token using the redirect_uri from the auth URL
+                from urllib.parse import unquote
+
+                redirect_uri_decoded = unquote(web_redirect_uri) if web_redirect_uri else ""
+
+                if not redirect_uri_decoded:
+                    click.echo("Error: Could not determine redirect_uri", err=True)
+                    sys.exit(1)
+
+                click.echo("")
+                click.echo("Exchanging code for access token...")
+
+                # Build payload with code, redirect_uri, and state (if present)
+                payload = {"code": code, "redirect_uri": redirect_uri_decoded}
+                if state:
+                    payload["state"] = state
+
+                with httpx.Client() as exchange_client:
+                    exchange_response = exchange_client.post(
+                        f"{any_llm_platform_url}/oauth/{provider}/callback",
+                        json=payload,
+                        timeout=30.0,
+                    )
+
+                    if exchange_response.status_code != 200:
+                        try:
+                            error_detail = exchange_response.json().get("detail", "Unknown error")
+                        except Exception:
+                            error_detail = f"HTTP {exchange_response.status_code}"
+
+                        click.echo("")
+                        click.echo(f"❌ Authentication failed: {error_detail}", err=True)
+                        click.echo("")
+
+                        if "authorization code" in str(error_detail).lower() or "invalid" in str(error_detail).lower():
+                            click.echo("The authorization code may have already been used or expired.")
+                            click.echo("")
+                            click.echo("Common causes:")
+                            click.echo("  • The page loaded before you copied the URL (code was consumed)")
+                            click.echo("  • You waited too long (codes expire in 60 seconds)")
+                            click.echo("  • You copied an incomplete URL")
+                            click.echo("")
+                            click.echo("Please try again and copy the URL IMMEDIATELY after redirect:")
+                            click.echo("  1. Start the login process again")
+                            click.echo("  2. As SOON as you see any-llm.ai, press ESC to stop loading")
+                            click.echo("  3. Copy the URL from the address bar")
+                            click.echo("")
+
+                        sys.exit(1)
+
+                    token_data = exchange_response.json()
+
+                # Save token
+                save_oauth_token(
+                    provider=provider,
+                    access_token=token_data["access_token"],
+                    token_type=token_data.get("token_type", "bearer"),
+                    user_email=token_data.get("user_email"),
+                )
+
+                click.echo("")
+                click.echo("✓ Authentication successful!")
+                if token_data.get("user_email"):
+                    click.echo(f"✓ Logged in as: {token_data.get('user_email')}")
+                if token_data.get("is_new_user"):
+                    click.echo("✓ New user account created")
+                click.echo("✓ Credentials saved to ~/.any-llm/config.json")
+                click.echo("")
+                return
+            else:
+                # Could not get auth URL, fall back to automatic flow
+                click.echo("⚠️  Could not retrieve OAuth configuration from backend")
+                click.echo("Attempting automatic OAuth flow...")
+                click.echo("")
+
+        # Define callbacks for OAuth flow
+        def on_browser_open(url: str) -> None:  # noqa: ARG001
+            click.echo("Opening browser for authentication...")
+
+        def on_browser_failure(url: str) -> None:
+            click.echo("")
+            click.echo("Could not automatically open browser.", err=True)
+            click.echo("Please visit this URL manually:", err=True)
+            click.echo("")
+            click.echo(f"  {url}")
+            click.echo("")
+
+        # Run OAuth flow
+        result = run_oauth_flow(
+            any_llm_platform_url,
+            oauth_provider,
+            on_browser_open=on_browser_open,
+            on_browser_failure=on_browser_failure,
+        )
+
+        # Save token
+        save_oauth_token(
+            provider=provider,  # provider is str here due to check above
+            access_token=result.access_token,
+            token_type=result.token_type,
+            user_email=result.user_email,
+        )
+
+        click.echo("")
+        click.echo("✓ Authentication successful!")
+        if result.user_email:
+            click.echo(f"✓ Logged in as: {result.user_email}")
+        if result.is_new_user:
+            click.echo("✓ New user account created")
+        click.echo("✓ Credentials saved to ~/.any-llm/config.json")
+        click.echo("")
+
+    except OAuthError as e:
+        click.echo("")
+        click.echo(f"Error: OAuth authentication failed - {e}", err=True)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        click.echo("")
+        click.echo("Authentication cancelled by user")
+        sys.exit(1)
+    except (httpx.HTTPError, ValueError, json.JSONDecodeError) as e:
+        logger.exception("Unexpected error during OAuth flow")
+        click.echo("")
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@auth.command("status")
+@click.pass_context
+def auth_status(ctx: click.Context) -> None:  # noqa: ARG001
+    """Show authentication status."""
+    oauth_token = get_oauth_token()
+
+    if oauth_token:
+        click.echo("")
+        click.echo("Authentication Status:")
+        click.echo(f"  Method: OAuth ({oauth_token.provider.title()})")
+        if oauth_token.user_email:
+            click.echo(f"  User: {oauth_token.user_email}")
+        if oauth_token.expires_at:
+            click.echo(f"  Token expires: {oauth_token.expires_at}")
+        click.echo("")
+        return
+
+    # Check for username/password in environment
+    username = os.environ.get("ANY_LLM_USERNAME")
+    if username:
+        click.echo("")
+        click.echo("Authentication Status:")
+        click.echo("  Method: Username/Password (environment variables)")
+        click.echo(f"  User: {username}")
+        click.echo("")
+        return
+
+    # Not authenticated
+    click.echo("")
+    click.echo("Not authenticated")
+    click.echo("")
+    click.echo("To authenticate, use one of the following methods:")
+    click.echo("  1. Run 'any-llm auth login' to authenticate with OAuth")
+    click.echo("  2. Set ANY_LLM_USERNAME and ANY_LLM_PASSWORD environment variables")
+    click.echo("")
+
+
+@auth.command("logout")
+@click.pass_context
+def auth_logout(ctx: click.Context) -> None:  # noqa: ARG001
+    """Remove stored authentication credentials."""
+    oauth_token = get_oauth_token()
+
+    if oauth_token:
+        clear_oauth_token()
+        click.echo("")
+        click.echo("✓ Logged out successfully")
+        click.echo("✓ OAuth credentials removed from ~/.any-llm/config.json")
+        click.echo("")
+    else:
+        click.echo("")
+        click.echo("No OAuth credentials stored")
+        click.echo("")
+        click.echo("Note: If using username/password authentication via environment")
+        click.echo("variables, you need to unset them manually:")
+        click.echo("  unset ANY_LLM_USERNAME")
+        click.echo("  unset ANY_LLM_PASSWORD")
+        click.echo("")
 
 
 # ========== Main Entry Point ==========

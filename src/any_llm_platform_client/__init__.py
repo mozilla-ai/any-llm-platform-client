@@ -22,6 +22,7 @@ except PackageNotFoundError:
 
 # Export public API
 from .client import AnyLLMPlatformClient, DecryptedProviderKey
+from .config import OAuthTokenData, clear_oauth_token, get_oauth_token, save_oauth_token
 from .crypto import (
     KeyComponents,
     decrypt_data,
@@ -29,7 +30,8 @@ from .crypto import (
     load_private_key,
     parse_any_llm_key,
 )
-from .exceptions import ChallengeCreationError, ProviderKeyFetchError
+from .exceptions import ChallengeCreationError, OAuthError, ProviderKeyFetchError
+from .oauth import OAuthProvider, OAuthResult, get_available_providers, run_oauth_flow
 
 __all__ = [
     # Crypto functions
@@ -41,9 +43,20 @@ __all__ = [
     # Client classes
     "AnyLLMPlatformClient",  # For decryption and management via ManagementMixin
     "DecryptedProviderKey",  # Dataclass for decrypted provider key with metadata
+    # OAuth functions
+    "OAuthProvider",
+    "OAuthResult",
+    "run_oauth_flow",
+    "get_available_providers",
+    # Config functions
+    "OAuthTokenData",
+    "get_oauth_token",
+    "save_oauth_token",
+    "clear_oauth_token",
     # Exceptions
     "ChallengeCreationError",
     "ProviderKeyFetchError",
+    "OAuthError",
     # Version
     "__version__",
 ]
